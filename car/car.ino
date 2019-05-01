@@ -1,6 +1,19 @@
 #include <FlexiTimer2.h>
 
-// 5-1加入地图
+
+int Direction = 0;
+// 标志当前车头朝向
+// Direction = 0 -> y轴正向  右
+// Direction = 1 -> x轴负向  上
+// Direction = 2 -> y轴负向  左
+// Direction = 3 -> x轴正向  下
+// 左转时 Direction = ( Direction+1 ) % 4
+// 右转时 Direction = ( Direction-1 ) % 4
+// if Direction < 0{ Direction += 4 }
+
+
+int Position_X = 0;
+int Position_Y = 0;
 const bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
@@ -13,6 +26,7 @@ const bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
                           {0,0,0,0,0,0,0,0,0,0,0,0}};
+
 
 /* 引脚定义 */
 int ENCODER_L_A = 20;
@@ -53,13 +67,13 @@ int Flag_Count = 0;
 
 //运行数值
 int V_NOW_L ,V_NOW_R ;//车轮当前速度 ，R -> PWMA
-#define NormalSpeed 100
-#define Value_setpoint 40 
-int setpoint_L = Value_setpoint;
-int setpoint_R = Value_setpoint;
+int setpoint_L = 20;
+int setpoint_R = 20;
+#define NormalSpeed 150
+#define Value_Setpoint 20
 int Value_Red_ForWard[4] = {0};
 int Value_Red_Center[4] = {0};
-int Position_X = 0,Position_Y = 0;
+
 
 //  pid
 double PulseCounter_L = 0, PulseCounter_R = 0;    //左右电机编码器脉冲计数器
@@ -70,21 +84,43 @@ static int error_last2, error_int2, derror2;
 int count2 = 0;
 int count_Ti = 5;
 
-//  pid
-double PulseCounter_L = 0, PulseCounter_R = 0;    //左右电机编码器脉冲计数器
-int time;
-int count = 0;
-static int error_last1, error_int1, derror1;
-static int error_last2, error_int2, derror2;
-int count2 = 0;
-int count3 = 0;  // 控制脉冲延时的时间
-int count_Ti = 5;
 
-/**************************************************************************
-函数功能：PID速度调节 
-入口参数：
-返回  值：无
-**************************************************************************/
+
+
+//  5-1 
+int M;  // 底层运动=1, 上层运动=2, 拍摄=3
+int move_state;   //
+int  turn_direction;
+bool turn_complete;     // 转弯完成标志, 在给出转弯信号的同时置false即可
+
+
+typedef struct point{
+  int x;
+  int y;
+} Point;
+
+typedef struct stack{     // 用于储存路径的堆栈
+  int top;
+  Point Road[80];
+} Stack;
+
+Stack S;
+Point PushS( Point p){
+  if (S.top > 80) {
+    return;
+  }
+  S[++top] = p;
+  return;
+}
+
+Point PopS(void){
+  if (S.top == -1) {
+    return;
+  }
+  return S[top--];
+}
+
+
 void calculate_pid(){
     double Kp = 1.45, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
     if (Flag_Begin) {
@@ -171,6 +207,7 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     return v;
 }
 
+
 /**************************************************************************
 函数功能：赋值给PWM寄存器 作者：平衡小车之家
 入口参数：MotorA, MotorB
@@ -193,7 +230,9 @@ void Set_Pwm()
 void Limit_Pwm(void)
 {
   int Amplitude = 250;  //===PWM满幅是255 限制在250
-  int DIFFERENCE = 0;
+  int DIFFERENCE = 1;
+  if(Flag_Forward==1)  V_NOW_L -=DIFFERENCE;  //DIFFERENCE是一个衡量平衡小车电机和机械安装差异的一个变量。直接作用于输出，让小车具有更好的一致性。
+  if(Flag_Backward==1)   V_NOW_L-=DIFFERENCE;
   if (V_NOW_R < -Amplitude) V_NOW_R = -Amplitude;
   if (V_NOW_R > Amplitude)  V_NOW_R = Amplitude;
   if (V_NOW_L < -Amplitude) V_NOW_L = -Amplitude;
@@ -205,7 +244,7 @@ void Limit_Pwm(void)
 返回  值：无
 **************************************************************************/
 void Control(int Receive_Data){
-    Flag_Begin = 1;
+
     switch (Receive_Data)   {
       case 0x01: Flag_Forward = 1, Flag_Backward = 0, Flag_Left = 0, Flag_Right = 0;   break;              //前进
       case 0x02: Flag_Forward = 0, Flag_Backward = 1, Flag_Left = 0, Flag_Right = 0;   break;              //后转
@@ -216,86 +255,75 @@ void Control(int Receive_Data){
     if(Flag_Forward) {
         V_NOW_L = NormalSpeed;
         V_NOW_R = NormalSpeed;
-        setpoint_L = Value_setpoint-1;
-        setpoint_R = Value_setpoint ;
+        setpoint_L = Value_Setpoint;
+        setpoint_R = Value_Setpoint-1;
         Limit_Pwm();
         Set_Pwm();
+        Serial.println("直行");
     }
     if(Flag_Backward) {
         V_NOW_L = -NormalSpeed;
         V_NOW_R = -NormalSpeed;
-        setpoint_L = -Value_setpoint+1;
-        setpoint_R = -Value_setpoint;
+        setpoint_L = -Value_Setpoint+1;
+        setpoint_R = -Value_Setpoint;
         Limit_Pwm();
         Set_Pwm();
     }
     if(Flag_Left) {
-        V_NOW_L = -NormalSpeed +20;
-        V_NOW_R = NormalSpeed -20;
-        setpoint_L = -Value_setpoint + 11 ;
-        setpoint_R = Value_setpoint + 10;
+        V_NOW_L = -NormalSpeed ;
+        V_NOW_R = NormalSpeed ;
+        setpoint_L = -Value_Setpoint+1;
+        setpoint_R = Value_Setpoint;
         Limit_Pwm();
         Set_Pwm();
+        Serial.println("左转");
     }
     if(Flag_Right) {
-        V_NOW_L = NormalSpeed + 20;
-        V_NOW_R = -NormalSpeed - 20;
-        setpoint_L = Value_setpoint- 11 ;
-        setpoint_R = -Value_setpoint -10 ;
+        V_NOW_L = NormalSpeed ;
+        V_NOW_R = -NormalSpeed ;
+        setpoint_L = Value_Setpoint-1;
+        setpoint_R = -Value_Setpoint;
         Limit_Pwm();
         Set_Pwm();
+        Serial.println("右转");
     }
 }
-/**************************************************************************
-函数功能：DEBUG  作者：Ding
-入口参数：Receive_Data
-返回  值：无
-**************************************************************************/
-void DEBUG(){
-  Serial.print("V_L : ");
-  Serial.print(PulseCounter_L);
-  Serial.print(' ');
-  Serial.print(setpoint_L);
-  Serial.print(" ");
-  Serial.println(V_NOW_L);
-  Serial.print("V_R : ");
-  Serial.print(PulseCounter_R);
-  Serial.print(' ');
-  Serial.print(setpoint_R);
-  Serial.print(" ");
-  Serial.println(V_NOW_R);
-  Serial.print("Position  ");
-  Serial.println(Position_X);
-}
+
+
 /**************************************************************************
 函数功能：控制小车转向  作者：Ding
 入口参数：Receive_Data
 返回  值：无
 **************************************************************************/
 void Turn_Left(){
+  Serial.println("左转！");
   Control(2);
   delay(70);
   Control(4);
-  delay(150);
+  delay(200);
   Read_RedValue();
   while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
            !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-             DEBUG();
              Read_RedValue();
        }
+  Direction = (Direction+1) % 4;
 }
 void Turn_Right(){
   Control(2);
   delay(70);
   Control(3);
-  delay(150);
+  delay(200);
   Read_RedValue();
   while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
            !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-             DEBUG();
              Read_RedValue();
        }
+  Direction = (Direction - 1) % 4;
+  if (Direction < 0) {
+    Direction += 4;
+  }
 }
+
 /**************************************************************************
 函数功能：车轮电机停止  作者：Ding
 入口参数：无
@@ -310,9 +338,8 @@ void Stop(){
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
-    setpoint_R = 0;
-    setpoint_L = 0;
 }
+
 /**************************************************************************
 函数功能：红外传感纠偏  作者：Ding
 入口参数：无
@@ -322,13 +349,13 @@ void Rectify(){
 
     if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//左大出界，向右纠偏
             !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                V_NOW_R = NormalSpeed - 20;
+                setpoint_R = Value_Setpoint - 4;
                 Limit_Pwm();
                 Set_Pwm();
     }
     else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//右大出界，向左纠偏
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                V_NOW_L = NormalSpeed - 20;
+                setpoint_L = Value_Setpoint - 4;
                 Limit_Pwm();
                 Set_Pwm();
     }
@@ -338,97 +365,37 @@ void Rectify(){
 //    }
     else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                setpoint_L = setpoint_R = Value_Setpoint;
                 Limit_Pwm();
                 Set_Pwm();
     }
     else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左出界
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 V_NOW_R = NormalSpeed - 8;
+                 setpoint_R = Value_Setpoint - 2;
                  Limit_Pwm();
                  Set_Pwm();
     }
     else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 V_NOW_L = NormalSpeed - 10;
+                 setpoint_L = Value_Setpoint - 2;
                  Limit_Pwm();
                  Set_Pwm();
     }
     else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左出界
             Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 V_NOW_R = NormalSpeed - 30;
+                 setpoint_R = Value_Setpoint - 5;
                  Limit_Pwm();
                  Set_Pwm();
     }
     else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 V_NOW_L = NormalSpeed - 30;
+                 setpoint_L = Value_Setpoint - 5;
                  //V_NOW_R = NormalSpeed;
                  Limit_Pwm();
                  Set_Pwm();
     }
  }
-/**************************************************************************
-函数功能：红外传感纠偏  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Rectify_406(){
 
-    if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//左大出界，向右纠偏
-            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                //V_NOW_L = NormalSpeed;
-                V_NOW_R = NormalSpeed - 25;
-                Limit_Pwm();
-                Set_Pwm();
-    }
-    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//右大出界，向左纠偏
-            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                V_NOW_L = NormalSpeed - 25;
-               // V_NOW_R = NormalSpeed;
-                Limit_Pwm();
-                Set_Pwm();
-    }
-    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //停止
-            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                Stop();
-    }
-    else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //正常
-            Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-//                V_NOW_L = NormalSpeed;
-//                V_NOW_R = NormalSpeed;
-                Limit_Pwm();
-                Set_Pwm();
-    }
-    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //左出界
-            Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 //V_NOW_L = NormalSpeed;
-                 V_NOW_R = NormalSpeed - 20;
-                 Limit_Pwm();
-                 Set_Pwm();
-    }
-    else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右出界
-            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 V_NOW_L = NormalSpeed - 20;
-                 //V_NOW_R = NormalSpeed;
-                 Limit_Pwm();
-                 Set_Pwm();
-    }
-    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //左出界
-            !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 //V_NOW_L = NormalSpeed;
-                 V_NOW_R = NormalSpeed - 35;
-                 Limit_Pwm();
-                 Set_Pwm();
-    }
-    else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右出界
-            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 V_NOW_L = NormalSpeed - 35;
-                 //V_NOW_R = NormalSpeed;
-                 Limit_Pwm();
-                 Set_Pwm();
-    }
-    
- }
 
 /**************************************************************************
 函数功能：红外传感转向  作者：Ding
@@ -439,6 +406,8 @@ void Rectify_Turn(){
     if(!Value_Red_Center[0] && Value_Red_Center[1] &&
        !Value_Red_Center[2] && Value_Red_Center[3]){
         Flag_Count = 0;
+//        Serial.println("1");
+//        Serial.println(Position_X);
        }
     if(!Value_Red_Center[0] && !Value_Red_Center[1] &&
        !Value_Red_Center[2] && !Value_Red_Center[3]){
@@ -446,20 +415,13 @@ void Rectify_Turn(){
               Position_X ++;
               Flag_Count = 1;
             }
-            if(Position_X == 2){
-              Turn_Right();
+            if(Position_X == 4){
+              Turn_Left();
               Control(1);
-              delay(100);
             }
-//            else if(Position_X == 3 ||Position_X == 4 || Position_X == 5 || Position_X == 7){
-//              Turn_Left();
-//              Control(1);
-//              delay(100);
-//            }
-            else if(Position_X == 3){
-              Turn_Right();
+            if(Position_X == 5){
+              Turn_Left();
               Control(1);
-              delay(100);
               Position_X = 0;
             }
     }
@@ -508,6 +470,12 @@ void US_100(){
     Serial.println();
     delay(1000);
 }
+
+
+
+
+
+
 void setup() {
     // put your setup code here, to run once:
     pinMode(IN1, OUTPUT);        //TB6612控制引脚，控制电机1的方向，01为正转，10为反转
@@ -541,38 +509,91 @@ void setup() {
 
     Serial.begin(9600);
     attachInterrupt(0,Stop,LOW); //外部中断，停止
-    FlexiTimer2::set(10, calculate_pid);
+    FlexiTimer2::set(5, Main_Loop);   // 状态机控制
     FlexiTimer2::start();
 
     attachInterrupt(3,ReadEncoder_L, CHANGE);
     attachInterrupt(2,ReadEncoder_R, CHANGE);
+
+    // 路径堆栈初始化
+    S.top = -1;
 }
 
-void loop() {
-    if(digitalRead(collide_1) == LOW) {
-        Flag_Begin = 1;
-        V_NOW_L = V_NOW_R = NormalSpeed;
-        Set_Pwm();
-        error_int1 = error_int2 = 0;
-    }
-    if(Flag_Begin == true &&Receive_Data == 0){
-       // delay(10000);
-        Receive_Data = 1; //开始直行
-        Control(Receive_Data);
-    }
-    if(Flag_Begin){
-        analogWrite(PWMB, abs(V_NOW_R)); //赋值给PWM寄存器
-        analogWrite(PWMA, abs(V_NOW_L)); //赋值给PWM寄存器
-    }
-    if(Flag_Begin){
-       Read_RedValue();
-       Rectify_Turn();
-    }
-    if(Flag_Begin){
-      Rectify();
-      DEBUG();
-    } 
+
+
+
+void Movement_block(void) {
+    // 读红外
+  Read_RedValue();
+    // pid 计算
+  calculate_pid();
+  switch (move_state)
+  {
+    case 1:
+      //保持巡线
+      break;
+    case 2:
+      Movement_block_turn();
+      break;
+    case 3:
+      //停车
+      break;
+    default:
+      Serial.println("Movement_block, case异常情况");
+      break;
+  }
+
 }
+
+void Movement_block_turn(void){
+  switch (turn_direction)
+  {
+    case 1:
+      // 右转
+      break;
+    case 2:
+      // 左转
+    default:
+      break;
+  }
+
+  if (// 未到位) {
+    turn_complete = false;
+    turn_direction = turn_direction;
+  }
+  if (// 到位) {
+    turn_complete = true;
+  }
+  
+}
+
+void Servo_Stepper_block(void){
+
+}
+
+void Classfy_block(void){
+
+}
+
+void Main_Loop(void) {
+  switch (M)
+  {
+    case 1:
+      Movement_block();
+      break;
+    case 2:
+      Servo_Stepper_block();
+    case 3:
+      Classfy_block();
+    default:
+      break;
+  }
+}
+
+void loop{
+  // 空循环, 等定时器溢出
+}
+
 
 
 
@@ -641,7 +662,6 @@ void ReadEncoder_R(void){
   }
 }
 
-
 //////3.30 20.17增加定位
 
 bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的水平运动直线上是否有障碍物
@@ -685,21 +705,17 @@ void Adjust_Direction(int Target){
   if (Target - Direction == 2 || Target - Direction == -2) {
     Serial.println("转180度");
     //转180度
-    Turn_Left();
-    Turn_Left();
   }
   else if (Target - Direction == 1 || Target - Direction == -3) {
     Serial.println("左转90度");
     //左转90度
-    Turn_Left();
   }
   else if (Target - Direction == -1 || Target - Direction == 3) {
     Serial.println("右转90度");
     //右转90度
-    Turn_Right();
   }
   else{
-    Serial.println("调整方向异常");
+    Serial.println("Adjust_Direction,调整方向异常");
   }
 }
 
@@ -768,6 +784,7 @@ void Move_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->(x2, y0)
       //向下走
       //直到y == y2
       Adjust_Direction(3);
+
     }
     else if (x2 < x1){
       //向上走
