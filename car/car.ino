@@ -99,26 +99,29 @@ typedef struct point{
   int y;
 } Point;
 
-typedef struct stack{     // 用于储存路径的堆栈
-  int top;
+typedef struct quene{     // 用于储存路径的队列
+  int front;
+  int rear;
   Point Road[80];
-} Stack;
+} Quene;
 
-Stack S;
-Point PushS( Point p){
-  if (S.top > 80) {
+Quene Q;
+Point Target_Point, tem_Point;      // 目标点和临时点
+
+
+void Enquene( Point P ){
+    Q.Road[Q.front++] = P;
     return;
-  }
-  S[++top] = p;
-  return;
 }
 
-Point PopS(void){
-  if (S.top == -1) {
-    return;
-  }
-  return S[top--];
+Point Dequene(){
+    return Q.Road[++Q.rear];
 }
+
+bool QueneIsEmpty(){
+    return Q.front - Q.rear == 1;
+}
+
 
 
 void calculate_pid(){
@@ -515,8 +518,6 @@ void setup() {
     attachInterrupt(3,ReadEncoder_L, CHANGE);
     attachInterrupt(2,ReadEncoder_R, CHANGE);
 
-    // 路径堆栈初始化
-    S.top = -1;
 }
 
 
@@ -667,6 +668,12 @@ void ReadEncoder_R(void){
 bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的水平运动直线上是否有障碍物
   // 遍历Map中的x0行即可
   bool HaveObastacle = false;
+  if (y1 > y2){
+    int t;
+    t = y1;
+    y1 = y2;
+    y2 = t;
+  }
   for(int i = y1; i <= y2; i++){
     if (Map[x0][i] == false) {
       HaveObastacle = true;
@@ -679,6 +686,12 @@ bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的
 bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的垂直运动直线上是否有障碍物
   // 遍历Map中的y0列即可
   bool HaveObastacle = false;
+  if (x1 > x2){
+    int t;
+    t = x1;
+    x1 = x2;
+    x2 = t;
+  }
   for(int i = x1; i <= x2; i++){
     if (Map[i][y0] == false) {
       HaveObastacle = true;
@@ -689,62 +702,72 @@ bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的
 }
 
 void Adjust_Direction(int Target){
-  Serial.print("当前位置 ");
-  Serial.print("(X ,Y) == (");
-  Serial.print(Position_X);
-  Serial.print(" ,");
-  Serial.print(Position_Y);
-  Serial.println(")");
-  Serial.print("开始调整车头方向,当前Direction: ");
-  Serial.print(Direction);
-  Serial.print("    Target: ");
-  Serial.println(Target);
+//   Serial.print("当前位置 ");
+//   Serial.print("(X ,Y) == (");
+//   Serial.print(Position_X);
+//   Serial.print(" ,");
+//   Serial.print(Position_Y);
+//   Serial.println(")");
+//   Serial.print("开始调整车头方向,当前Direction: ");
+//   Serial.print(Direction);
+//   Serial.print("    Target: ");
+//   Serial.println(Target);
   if (Target == Direction) {
     return;
   }
   if (Target - Direction == 2 || Target - Direction == -2) {
-    Serial.println("转180度");
+    // Serial.println("转180度");
     //转180度
   }
   else if (Target - Direction == 1 || Target - Direction == -3) {
-    Serial.println("左转90度");
+    // Serial.println("左转90度");
     //左转90度
   }
   else if (Target - Direction == -1 || Target - Direction == 3) {
-    Serial.println("右转90度");
+    // Serial.println("右转90度");
     //右转90度
   }
   else{
-    Serial.println("Adjust_Direction,调整方向异常");
+    // Serial.println("Adjust_Direction,调整方向异常");
   }
 }
 
 void Move_Horizontal(int x0, int y1, int y2){ // 水平移动(x0, y1) -->(x0, y2)
-  Serial.print("水平移动: ");
-  Serial.print("(");
-  Serial.print(x0);
-  Serial.print(",");
-  Serial.print(y1);
-  Serial.print(") --> ");
-  Serial.print("(");
-  Serial.print(x0);
-  Serial.print(",");
-  Serial.print(y2);
-  Serial.println(")");
+//   Serial.print("水平移动: ");
+//   Serial.print("(");
+//   Serial.print(x0);
+//   Serial.print(",");
+//   Serial.print(y1);
+//   Serial.print(") --> ");
+//   Serial.print("(");
+//   Serial.print(x0);
+//   Serial.print(",");
+//   Serial.print(y2);
+//   Serial.println(")");
   if (Check_obstacle_x(x0, y1, y2) == false) {  // 没有障碍物, 直接运动
     //直接运动, 到达指定坐标结束
-    if(y2 > y1){
-      Adjust_Direction(0);
-      //向右走
-      //向右直行直到 y == y2  （while?）         
-      }
+    tem_Point.x = x0;
+     if(y2 > y1){
+    // //   Adjust_Direction(0);
+    // //   //向右走
+    // //   //向右直行直到 y == y2  （while?）
+    for( i = y1; i <= y2; i++){
+            tem_Point.y = i;
+            Enquene(tem_Point);
+        }
+     }
       //向右直行直到 y == y2  （while?）    
-    else if (y2 < y1){
-      Adjust_Direction(2);
-      //向左走
-      //向左直行直到 y == y2  （while?） 
-    }
-  }
+     else if (y2 < y1){
+    // //   Adjust_Direction(2);
+    // //   //向左走
+    // //   //向左直行直到 y == y2  （while?） 
+    for( i = y1; i <= y2; i--){
+            tem_Point.y = i;
+            Enquene(tem_Point);
+        }
+     }
+     }   
+
   else{ // 如果有障碍物
     if(x0 <= 5){
       // 移动到x = 3, 即(x0, y1) --> (3, y1)
@@ -766,53 +789,66 @@ void Move_Horizontal(int x0, int y1, int y2){ // 水平移动(x0, y1) -->(x0, y2
 }
 
 void Move_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->(x2, y0)
-  Serial.print("垂直移动: ");
-  Serial.print("(");
-  Serial.print(x1);
-  Serial.print(",");
-  Serial.print(y0);
-  Serial.print(") --> ");
-  Serial.print("(");
-  Serial.print(x2);
-  Serial.print(",");
-  Serial.print(y0);
-  Serial.println(")");
+//   Serial.print("垂直移动: ");
+//   Serial.print("(");
+//   Serial.print(x1);
+//   Serial.print(",");
+//   Serial.print(y0);
+//   Serial.print(") --> ");
+//   Serial.print("(");
+//   Serial.print(x2);
+//   Serial.print(",");
+//   Serial.print(y0);
+//   Serial.println(")");
   if (Check_obstacle_y(y0, x1, x2) == false) {  // 没有障碍物, 直接运动
-  Serial.println("不存在障碍");
+//   Serial.println("不存在障碍");
     //直接运动, 到达指定坐标结束
+    tem_Point.y = y0;
     if(x2 > x1){
       //向下走
       //直到y == y2
-      Adjust_Direction(3);
-
+    //   Adjust_Direction(3);
+        for(int i = x1; i <= x2; i++){
+            tem_Point.x = i;
+            Enquene(tem_Point);
+        }
     }
     else if (x2 < x1){
       //向上走
-      Adjust_Direction(1);
+    //   Adjust_Direction(1);
+        for(int i = x1; i <= x2; i--){
+            tem_Point.x = i;
+            Enquene(tem_Point);
+        }
     }
   }
   else{ // 如果有障碍物
-  Serial.println("存在障碍");  
+//   Serial.println("存在障碍");  
     if(y0 <= 5){
-      // 移动到y = 3, 即(x1, y0) --> (x1, 3)
+    //   // 移动到y = 3, 即(x1, y0) --> (x1, 3)
       Move_Horizontal(x1, y0, 3);
-      // 然后再从 (x1, 3) --> (x2, 3)
+    //   // 然后再从 (x1, 3) --> (x2, 3)
       Move_Vertical(3, x1, x2);
-      // (x2, 3) --> (x2, y0)
+    //   // (x2, 3) --> (x2, y0)
       Move_Horizontal(x2, 3, y0);
     }
     else{
-      // (x1, y0) --> (x1, 8)
+    //   // (x1, y0) --> (x1, 8)
       Move_Horizontal(x1, y0, 8);
-      // (x1, 8) --> (x2, 8)
+    //   // (x1, 8) --> (x2, 8)
       Move_Vertical(8, x1, x2);
-      // (x2, 8) --> (x2, y0)
+    //   // (x2, 8) --> (x2, y0)
       Move_Horizontal(x2, 8, y0);
     }
   }
 }
 
 void MOVE(int x1, int y1, int x2, int y2){
+  Q.rear = -1;
+  Q.front = 0;
   Move_Horizontal(x1, y1, y2);
   Move_Vertical(y2, x1, x2);
 }
+
+
+
