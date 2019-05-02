@@ -122,8 +122,6 @@ bool QueneIsEmpty(){
     return Q.front - Q.rear == 1;
 }
 
-
-
 void calculate_pid(){
     double Kp = 1.45, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
     if (Flag_Begin) {
@@ -518,6 +516,7 @@ void setup() {
     attachInterrupt(3,ReadEncoder_L, CHANGE);
     attachInterrupt(2,ReadEncoder_R, CHANGE);
 
+
 }
 
 
@@ -567,6 +566,7 @@ void Movement_block_turn(void){
   }
   
 }
+
 
 void Servo_Stepper_block(void){
 
@@ -728,7 +728,9 @@ void Adjust_Direction(int Target){
     //右转90度
   }
   else{
+
     // Serial.println("Adjust_Direction,调整方向异常");
+
   }
 }
 
@@ -807,11 +809,13 @@ void Move_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->(x2, y0)
     if(x2 > x1){
       //向下走
       //直到y == y2
+
     //   Adjust_Direction(3);
         for(int i = x1; i <= x2; i++){
             tem_Point.x = i;
             Enquene(tem_Point);
         }
+
     }
     else if (x2 < x1){
       //向上走
