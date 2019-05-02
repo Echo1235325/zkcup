@@ -761,7 +761,7 @@ void Move_Horizontal(int x0, int y1, int y2){ // 水平移动(x0, y1) -->(x0, y2
     // //   Adjust_Direction(2);
     // //   //向左走
     // //   //向左直行直到 y == y2  （while?） 
-    for( i = y1; i <= y2; i--){
+    for( i = y1; i >= y2; i--){
             tem_Point.y = i;
             Enquene(tem_Point);
         }
@@ -816,7 +816,7 @@ void Move_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->(x2, y0)
     else if (x2 < x1){
       //向上走
     //   Adjust_Direction(1);
-        for(int i = x1; i <= x2; i--){
+        for(int i = x1; i >= x2; i--){
             tem_Point.x = i;
             Enquene(tem_Point);
         }
