@@ -66,10 +66,10 @@ int Flag_Count = 0;
 
 //运行数值
 int V_NOW_L ,V_NOW_R ;//车轮当前速度 ，R -> PWMA
-int setpoint_L = 20;
-int setpoint_R = 20;
-#define NormalSpeed 150
-#define Value_Setpoint 20
+int setpoint_L = 12;
+int setpoint_R = 12;
+#define NormalSpeed 40        // PID启动时存在较大超调量可能是NormalSpeed过大
+#define Value_Setpoint 12
 int Value_Red_ForWard[4] = {0};
 int Value_Red_Center[4] = {0};
 int Direction = 0;  //车头方向
@@ -88,7 +88,7 @@ int count = 0;
 static int error_last1, error_int1, derror1;
 static int error_last2, error_int2, derror2;
 int count2 = 0;
-int count_Ti = 5;
+int count_Ti = 3;
 
 // 位置坐标管理
 Quene Q;
@@ -114,7 +114,6 @@ void Start_PID(void){
   PulseCounter_L = 0, PulseCounter_R = 0;
   error_last1 = error_int1 = derror1 = 0;
   error_last2 = error_int2 = derror2 = 0;
-  FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
   FlexiTimer2::start();
 }
 
@@ -133,9 +132,8 @@ void calculate_pid(){
         Serial.print(' ');
         Serial.print(PulseCounter_R);
         Serial.print(' ');
-  
         Serial.print(V_NOW_L);
-        Serial.print(" ");
+        Serial.print(' ');
         Serial.print(V_NOW_R);
         
         count2 = 0;
@@ -159,7 +157,6 @@ double pid1(int Pulse, float Kp, float Ki, float Kd){
     static float v;
     error = setpoint_L - Pulse;
     error_int1 += error;
-    error_int1 = limit_int(error_int1);
     derror1 = error - error_last1;
     v = Kp * error + Ki * error_int1 + Kd * derror1;
     error_last1 = error;
@@ -186,7 +183,6 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     static float v;
     error = setpoint_R - Pulse;
     error_int2 += error;
-    error_int2 = limit_int(error_int2);
     derror2 = error - error_last2;
     v = Kp * error + Ki * error_int2 + Kd * derror2;
     error_last2 = error;
@@ -260,8 +256,7 @@ void Control(int Receive_Data){
         V_NOW_L = NormalSpeed;
         V_NOW_R = NormalSpeed;
         setpoint_L = Value_Setpoint;
-        setpoint_R = Value_Setpoint-1;
-        Serial.println("直行");
+        setpoint_R = Value_Setpoint-1;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
     }
     if(Flag_Backward) {
         V_NOW_L = -NormalSpeed;
@@ -293,34 +288,52 @@ void Control(int Receive_Data){
 入口参数：Receive_Data
 返回  值：无
 **************************************************************************/
-void Turn_Left(){
-  Serial.println("左转！");
-  Control(2);
-  delay(70);
-  Control(4);
-  delay(200);
-  Read_RedValue();
-  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-             Read_RedValue();
-       }
-  Direction = (Direction+1) % 4;
+//void Turn_Left(){
+//  Serial.println("左转！");
+//  Control(2);
+//  delay(70);
+//  Control(4);
+//  delay(200);
+//  Read_RedValue();
+//  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+//           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+//             Read_RedValue();
+//       }
+//  Direction = (Direction+1) % 4;
+//}
+//void Turn_Right(){
+//  Control(2);
+//  delay(70);
+//  Control(3);
+//  delay(200);
+//  Read_RedValue();
+//  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+//           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+//             Read_RedValue();
+//       }
+//  Direction = (Direction - 1) % 4;
+//  if (Direction < 0) {
+//    Direction += 4;
+//  }
+//}
+
+
+ /**************************************************************************
+函数功能：读取红外传感当前电平  作者：Ding
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Read_RedValue(){
+    Value_Red_ForWard[0] = digitalRead(Red_Forward_0);
+    Value_Red_ForWard[1] = digitalRead(Red_Forward_1);
+    Value_Red_ForWard[2] = digitalRead(Red_Forward_2);
+    Value_Red_ForWard[3] = digitalRead(Red_Forward_3);
+    Value_Red_Center[0] = digitalRead(Red_Center_0);
+    Value_Red_Center[1] = digitalRead(Red_Center_1);
+    Value_Red_Center[2] = digitalRead(Red_Center_2);
+    Value_Red_Center[3] = digitalRead(Red_Center_3);
 }
-void Turn_Right(){
-  Control(2);
-  delay(70);
-  Control(3);
-  delay(200);
-  Read_RedValue();
-  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-             Read_RedValue();
-       }
-  Direction = (Direction - 1) % 4;
-  if (Direction < 0) {
-    Direction += 4;
-  }
-}
+
 
 /**************************************************************************
 函数功能：车轮电机停止  作者：Ding
@@ -450,9 +463,11 @@ void setup() {
     attachInterrupt(0,Stop,LOW); //外部中断，停止
     attachInterrupt(3,ReadEncoder_L, CHANGE);
     attachInterrupt(2,ReadEncoder_R, CHANGE);
+    FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
 
     Now_Point.x = Now_Point.y = 0;
-
+    move_state = 0;
+    M = 0;
 }
 
 
@@ -461,21 +476,23 @@ void Movement_block(void) {
   // 先计算下个状态的direction
   // Cal_Direction();
   // pid 计算
-  calculate_pid();
   switch (move_state)
   {
     case 1:
+      Set_Pwm();
+      break;
     case 2:
+      break;
     case 3:
+      break;
     case 4:
-      Control(move_state);
       break;
     case 5:
       //停车
       Stop();
       break;
     default:
-      Serial.println("Movement_block, case异常情况");
+      //Serial.println("Movement_block, case异常情况");
       break;
   }
 }
@@ -490,13 +507,15 @@ void Classfy_block(void){
 }
 
 
-void loop{
+void loop(){
     if(digitalRead(collide_1) == LOW) {
         Flag_Begin = 1;
     }
     if(Flag_Begin == true && move_state == 0){
         M = 1;
         move_state = 1;
+        Start_PID();
+        Control(move_state);
     }
     if (Flag_Begin == 1) {
       switch (M){
@@ -518,27 +537,29 @@ void loop{
 /* ---------------------------------------------------------------------- */
 /* 定位程序 */
 /* ---------------------------------------------------------------------- */
-void Location(void){
-  // 读所有红外传感器
-  Read_RedValue();
-  // 如果检测到定位红外的下降沿, 那么要对Now_Point进行修改
-  if (/*检测到定位红外的下降沿*/) {
-    Now_Point = Next_Point;
-    if (QueneIsEmpty() == false) {
-      Next_Point = Dequene();
-    }
-    else{
-      // 路径结束, 转其他block操作
-    }
-  }
-  else{ // 没有检测到下降沿，还未触线，保持状态不变。
-  }
-}
+//void Location(void){
+//  // 读所有红外传感器
+//  Read_RedValue();
+//  // 如果检测到定位红外的下降沿, 那么要对Now_Point进行修改
+//  if (/*检测到定位红外的下降沿*/) {
+//    Now_Point = Next_Point;
+//    if (QueneIsEmpty() == false) {
+//      Next_Point = Dequene();
+//    }
+//    else{
+//      // 路径结束, 转其他block操作
+//    }
+//  }
+//  else{ // 没有检测到下降沿，还未触线，保持状态不变。
+//  }
+//}
 
 
 /* ---------------------------------------------------------------------- */
 /* 障碍物检查程序，检查一条直线上是否存在障碍物 */
 /* ---------------------------------------------------------------------- */
+
+int i;
 
 bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的水平运动直线上是否有障碍物
   // 遍历Map中的x0行即可
@@ -549,7 +570,7 @@ bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的
     y1 = y2;
     y2 = t;
   }
-  for(int i = y1; i <= y2; i++){
+  for(i = y1; i <= y2; i++){
     if (Map[x0][i] == false) {
       HaveObastacle = true;
       break;
@@ -567,7 +588,7 @@ bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的
     x1 = x2;
     x2 = t;
   }
-  for(int i = x1; i <= x2; i++){
+  for(i = x1; i <= x2; i++){
     if (Map[i][y0] == false) {
       HaveObastacle = true;
       break;
@@ -596,6 +617,7 @@ bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的
 
 void Cal_Direction(void){
 /* 先从Next_Point和当前坐标之间的关系得到Target_Direction */
+  int Target;
   if (Now_Point.x == Next_Point.x - 1 && Now_Point.y == Next_Point.y) {
     Target = 3;
   }
@@ -733,7 +755,7 @@ void Path_Planning_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->
       //向下走
       //直到y == y2
     //   Adjust_Direction(3);
-        for(int i = x1; i <= x2; i++){
+        for(i = x1; i <= x2; i++){
             tem_Point.x = i;
             Enquene(tem_Point);
         }
@@ -741,7 +763,7 @@ void Path_Planning_Vertical(int y0, int x1, int x2){ // 垂直移动(x1, y0) -->
     else if (x2 < x1){
       //向上走
     //   Adjust_Direction(1);
-        for(int i = x1; i >= x2; i--){
+        for(i = x1; i >= x2; i--){
             tem_Point.x = i;
             Enquene(tem_Point);
         }
