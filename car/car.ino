@@ -78,8 +78,6 @@ int Direction = 0;  //车头方向
 //  5-1 运动模态
 int M;  // 底层运动=1, 上层运动=2, 拍摄=3
 int move_state;   //
-int  turn_direction;
-bool turn_complete;     // 转弯完成标志, 在给出转弯信号的同时置false即可
 
 //  pid
 double PulseCounter_L = 0, PulseCounter_R = 0;    //左右电机编码器脉冲计数器
@@ -95,6 +93,9 @@ Quene Q;
 Point Target_Point, tem_Point;      // 目标点和临时点
 Point Next_Point, Now_Point;
 
+
+// 识别部分标志位
+bool Flag_Recognize_C = 0;
 
 void Enquene( Point P ){
     Q.Road[Q.front++] = P;
@@ -122,7 +123,7 @@ void Stop_PID(void){
 }
 
 void calculate_pid(){
-    double Kp = 1.45, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
+    double Kp = 1.65, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
     if (Flag_Begin) {
         if(count2 >= 0){
         time = millis();
@@ -153,13 +154,15 @@ void calculate_pid(){
     }
 }
 
+
+
 /**************************************************************************
 函数功能：这里根据V_NOW_L和V_NOW_R的正负决定电机的转动方向, 并且给PWMA、PWMB赋值
 入口参数：MotorA, MotorB
 返回  值：无
 **************************************************************************/
 void Set_Pwm(){
-  int DIFFERENCE = 0;
+  int DIFFERENCE = 1;
   if (V_NOW_L > 0)     digitalWrite(IN1, HIGH),      digitalWrite(IN2, LOW);  //TB6612的电平控制
   else             digitalWrite(IN1, LOW),       digitalWrite(IN2, HIGH); //TB6612的电平控制
   analogWrite(PWMA, abs(V_NOW_L) - DIFFERENCE); 
@@ -170,7 +173,7 @@ void Set_Pwm(){
 
 
 /**************************************************************************
-函数功能：控制小车的运动状态，直行、倒车、左右转等, 并赋值给V_NOW_L和V_NOW_R
+函数功能：设置直行倒车，左右转所使用的PID setpoint
 入口参数：Receive_Data
 返回  值：无
 **************************************************************************/
@@ -184,30 +187,20 @@ void Control(int Receive_Data){
       default: break;
   }
     if(Flag_Forward) {
-        V_NOW_L = NormalSpeed;
-        V_NOW_R = NormalSpeed;
         setpoint_L = Value_Setpoint;
         setpoint_R = Value_Setpoint;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
     }
     if(Flag_Backward) {
-        V_NOW_L = -NormalSpeed;
-        V_NOW_R = -NormalSpeed;
         setpoint_L = -Value_Setpoint+1;
         setpoint_R = -Value_Setpoint;
     }
     if(Flag_Left) {
-        V_NOW_L = -NormalSpeed ;
-        V_NOW_R = NormalSpeed ;
         setpoint_L = -Value_Setpoint+1;
         setpoint_R = Value_Setpoint;
-        Serial.println("左转");
     }
     if(Flag_Right) {
-        V_NOW_L = NormalSpeed ;
-        V_NOW_R = -NormalSpeed ;
         setpoint_L = Value_Setpoint-1;
         setpoint_R = -Value_Setpoint;
-        Serial.println("右转");
     }
 }
 
@@ -217,34 +210,38 @@ void Control(int Receive_Data){
 入口参数：Receive_Data
 返回  值：无
 **************************************************************************/
-//void Turn_Left(){
+void Turn_Left(){
 //  Serial.println("左转！");
-//  Control(2);
-//  delay(70);
-//  Control(4);
-//  delay(200);
-//  Read_RedValue();
-//  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-//           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-//             Read_RedValue();
-//       }
+// Control(2);
+// delay(70);
+ Control(4);
+ delay(200);
+ Read_RedValue();
+ while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+          !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+            Read_RedValue();
+      }
+// Control(3);
+// delay(70);
+ Stop();
 //  Direction = (Direction+1) % 4;
-//}
-//void Turn_Right(){
-//  Control(2);
-//  delay(70);
-//  Control(3);
-//  delay(200);
-//  Read_RedValue();
-//  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-//           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
-//             Read_RedValue();
-//       }
+}
+
+void Turn_Right(){
+// Control(2);
+// delay(70);
+ Control(3);
+ delay(200);
+ Read_RedValue();
+ while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+          !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+            Read_RedValue();
+      }
 //  Direction = (Direction - 1) % 4;
 //  if (Direction < 0) {
 //    Direction += 4;
 //  }
-//}
+}
 
 /**************************************************************************
 函数功能：红外传感纠偏  作者：Ding
@@ -252,14 +249,14 @@ void Control(int Receive_Data){
 返回  值：无
 **************************************************************************/
 void Rectify(){
-
+    int bias = 1;
     if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//左中出界
             !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                setpoint_R = Value_Setpoint - 2;
+                setpoint_R = Value_Setpoint - bias - 1;
     }
     else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//右中出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                setpoint_L = Value_Setpoint - 2;
+                setpoint_L = Value_Setpoint - bias - 1;
     }
 //    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //停止
 //            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
@@ -269,21 +266,25 @@ void Rectify(){
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
                 setpoint_L = setpoint_R = Value_Setpoint;
     }
+    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //过线的时候, 正常
+            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
+                setpoint_L = setpoint_R = Value_Setpoint;
+    }
     else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左小出界
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 setpoint_R = Value_Setpoint - 1;
+                 setpoint_R = Value_Setpoint - bias;
     }
     else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右小出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 setpoint_L = Value_Setpoint - 1;
+                 setpoint_L = Value_Setpoint - bias;
     }
     else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左大出界
             Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 setpoint_R = Value_Setpoint - 2;
+                 setpoint_R = Value_Setpoint - bias-2;
     }
     else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右大出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 setpoint_L = Value_Setpoint - 2;
+                 setpoint_L = Value_Setpoint - bias-2;
     }
  }
 
@@ -297,8 +298,6 @@ void Rectify(){
 //     if(!Value_Red_Center[0] && Value_Red_Center[1] &&
 //        !Value_Red_Center[2] && Value_Red_Center[3]){
 //         Flag_Count = 0;
-// //        Serial.println("1");
-// //        Serial.println(Position_X);
 //        }
 //     if(!Value_Red_Center[0] && !Value_Red_Center[1] &&
 //        !Value_Red_Center[2] && !Value_Red_Center[3]){
@@ -362,24 +361,49 @@ void setup() {
     M = 0;
 }
 
+void Exam_arrval_line(void){
+    if(!Value_Red_Center[0] && Value_Red_Center[1] &&
+       !Value_Red_Center[2] && Value_Red_Center[3]){
+        Flag_Count = 0;
+    }
+    if(!Value_Red_Center[0] && !Value_Red_Center[1] &&
+       !Value_Red_Center[2] && !Value_Red_Center[3]){
+            if(Flag_Count == 0){
+              Flag_Count = 1;
+              Now_Point = Next_Point;
+              if (!QueneIsEmpty()) {
+                Next_Point = Dequene();
+              }
+              else{
+              }
+            }
+       }
+}
+
+int count_p = 0;
 
 void Movement_block(void) {
-  //定位函数, 给出当前坐标值
+  // 检查是否到点
+    Read_RedValue();
+    Exam_arrval_line();
   // 先计算下个状态的direction
-  // Cal_Direction();
-  switch (move_state)
-  {
+    Cal_Direction();
+  switch (move_state){
     case 1:
+      Read_RedValue();
       Rectify();
       break;
     case 2:
+      Turn_Left();
       break;
     case 3:
+      Turn_Right();
       break;
     case 4:
+      // 掉头
       break;
     case 5:
-      //停车
+      // 停车
       Stop();
       break;
     default:
@@ -390,11 +414,6 @@ void Movement_block(void) {
 
 
 void Servo_Stepper_block(void){
-
-}
-
-void Classfy_block(void){
-
 }
 
 
@@ -407,6 +426,7 @@ void loop(){
         move_state = 1;
         Start_PID();
         Control(move_state);
+        MOVE(0, 0, 2, 1);
     }
     if (Flag_Begin == 1) {
       switch (M){
@@ -415,35 +435,15 @@ void loop(){
           break;
         case 2:
           Servo_Stepper_block();
+          break;
         case 3:
-          Classfy_block();
+//          Classfy_block();
         default:
           break;
       }
   }
 }
 
-
-
-/* ---------------------------------------------------------------------- */
-/* 定位程序 */
-/* ---------------------------------------------------------------------- */
-//void Location(void){
-//  // 读所有红外传感器
-//  Read_RedValue();
-//  // 如果检测到定位红外的下降沿, 那么要对Now_Point进行修改
-//  if (/*检测到定位红外的下降沿*/) {
-//    Now_Point = Next_Point;
-//    if (QueneIsEmpty() == false) {
-//      Next_Point = Dequene();
-//    }
-//    else{
-//      // 路径结束, 转其他block操作
-//    }
-//  }
-//  else{ // 没有检测到下降沿，还未触线，保持状态不变。
-//  }
-//}
 
 
 /* ---------------------------------------------------------------------- */
@@ -505,9 +505,14 @@ bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的
 // 右转时 Direction = ( Direction-1 ) % 4
 // if Direction < 0{ Direction += 4 }
 
-
 void Cal_Direction(void){
 /* 先从Next_Point和当前坐标之间的关系得到Target_Direction */
+//  if (Now_Point == Next_Point) {
+//    // 转停车状态
+//    M = 1;
+//    move_state = 5;
+//    return;
+//  }
   int Target;
   if (Now_Point.x == Next_Point.x - 1 && Now_Point.y == Next_Point.y) {
     Target = 3;
@@ -779,6 +784,7 @@ void Stop(){
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
+    delay(300);
 }
 
 
@@ -840,3 +846,59 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     Serial.println(derror2);
     return v;
 }
+
+
+//void Classfy_block(void){
+//  // 可能需要做一些检查
+//  int time1;
+//  int good;    // 物品代号
+//  Flag_Recognize_C = false;
+//  time1 = millis();
+//  Serial.println("C");        // 给nnpred程序发送开始识别指令C
+//  while(1){  // 等待nnpred计算完成返回计算结果
+//    if (Serial.available()) {
+//      good = Serial.read();
+//      Flag_Recognize_C = true;
+//      break;
+//    }
+//    if (millis() - time1 >= 10000) {    // 10秒超时
+//      break;
+//    }
+//  }
+//  if (Flag_Recognize_C) {
+//    switch (good)
+//    {
+//      case 0:
+//        break;
+//      case 1:
+//        break;
+//      case 2:
+//        break;
+//      case 3:
+//        break;
+//      case 4:
+//        break;
+//      case 5:
+//        break;
+//      case 6:
+//        break;
+//      case 7:
+//        break;
+//      case 8:
+//        break;
+//      case 9:
+//        break;
+//      case 10:
+//        break;
+//      case 11:
+//        break;
+//      case 12:
+//        break;
+//      default:
+//        break;
+//    }
+//  }
+//  else{
+//    //转串口通信超时处理
+//  }
+//}
