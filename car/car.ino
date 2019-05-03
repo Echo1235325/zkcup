@@ -12,17 +12,17 @@ typedef struct quene{     // 用于储存路径的队列
 } Quene;
 
 bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,1,1,1,0,0,0,0,1,1,1,0},
-                          {0,1,1,1,0,0,0,0,1,1,1,0},
-                          {0,1,1,1,0,0,0,0,1,1,1,0},
-                          {0,1,1,1,0,0,0,0,1,1,1,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,1,1,1,1,1,1,1,1,1,1,0},
-                          {0,0,0,0,0,0,0,0,0,0,0,0}};
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,1,1,1,0,0,0,0,1,1,1,0},
+                    {0,1,1,1,0,0,0,0,1,1,1,0},
+                    {0,1,1,1,0,0,0,0,1,1,1,0},
+                    {0,1,1,1,0,0,0,0,1,1,1,0},
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {0,0,0,0,0,0,0,0,0,0,0,0}};
 
 
 
@@ -86,7 +86,7 @@ int count = 0;
 static int error_last1, error_int1, derror1;
 static int error_last2, error_int2, derror2;
 int count2 = 0;
-int count_Ti = 3;
+int count_Ti = 5;
 
 // 位置坐标管理
 Quene Q;
@@ -228,12 +228,10 @@ void Turn_Left(){
  Control(4);
  delay(200);
  Read_RedValue();
- while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-          Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+ while(!( !Value_Red_Center[0]&&!Value_Red_Center[2] )){
             Read_RedValue();
       }
   Direction = (Direction + 1) % 4;
-//  Stop();
   Start_PID();
 }
 
@@ -244,16 +242,22 @@ void Turn_Right(){
  Control(3);
  delay(200);
  Read_RedValue();
- while(!(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //正常
-          !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+ while(!( !Value_Red_Center[0]&&!Value_Red_Center[2] )){
             Read_RedValue();
       }
-//  Serial.println("  右转");
   Direction = (Direction - 1) % 4;
   if (Direction < 0) {
     Direction += 4;
   }
   Start_PID();
+}
+
+void Turn_Around(){
+  Turn_Left();
+  Stop_PID();
+  // 中间需要一些调整代码
+  Start_PID();
+  Turn_Left();
 }
 
 /**************************************************************************
@@ -347,7 +351,7 @@ void setup() {
     Next_Point = Dequene();
 }
 
-void Exam_arrval_line(void){
+void Exam_arrval_Point(void){
     if(!Value_Red_Center[0] && Value_Red_Center[1] &&
        !Value_Red_Center[2] && Value_Red_Center[3]){
         Flag_Count = 0;
@@ -386,7 +390,7 @@ void Exam_arrval_line(void){
 void Movement_block(void) {
   // 检查是否到点
     Read_RedValue();
-    Exam_arrval_line();
+    Exam_arrval_Point();
 //  // 先计算下个状态的direction
     Cal_Direction();
   switch (move_state){
@@ -401,14 +405,13 @@ void Movement_block(void) {
       Turn_Right();
       break;
     case 4:
-      // 掉头
+      Turn_Around();
       break;
     case 5:
-      // 停车
       Stop();
       break;
     default:
-      //Serial.println("Movement_block, case异常情况");
+      Serial.println("Movement_block, case异常情况");
       break;
   }
 }
@@ -814,8 +817,8 @@ void Stop(){
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
-    delay(300);
-    Start_PID();
+    // delay(300);
+    // Start_PID();
 }
 
 
@@ -879,57 +882,56 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
 }
 
 
-//void Classfy_block(void){
-//  // 可能需要做一些检查
-//  int time1;
-//  int good;    // 物品代号
-//  Flag_Recognize_C = false;
-//  time1 = millis();
-//  Serial.println("C");        // 给nnpred程序发送开始识别指令C
-//  while(1){  // 等待nnpred计算完成返回计算结果
-//    if (Serial.available()) {
-//      good = Serial.read();
-//      Flag_Recognize_C = true;
-//      break;
-//    }
-//    if (millis() - time1 >= 10000) {    // 10秒超时
-//      break;
-//    }
-//  }
-//  if (Flag_Recognize_C) {
-//    switch (good)
-//    {
-//      case 0:
-//        break;
-//      case 1:
-//        break;
-//      case 2:
-//        break;
-//      case 3:
-//        break;
-//      case 4:
-//        break;
-//      case 5:
-//        break;
-//      case 6:
-//        break;
-//      case 7:
-//        break;
-//      case 8:
-//        break;
-//      case 9:
-//        break;
-//      case 10:
-//        break;
-//      case 11:
-//        break;
-//      case 12:
-//        break;
-//      default:
-//        break;
-//    }
-//  }
-//  else{
-//    //转串口通信超时处理
-//  }
-//}
+void Classfy_block(void){
+ // 可能需要做一些检查
+ int time1;
+ int good;    // 物品代号
+ Flag_Recognize = false;
+ time1 = millis();
+ Serial.println("C");        // 给nnpred程序发送开始识别指令C
+ while(1){  // 等待nnpred计算完成返回计算结果
+   if (Serial.available()) {
+     good = Serial.read();
+     Flag_Recognize = true;
+     break;
+   }
+   if (millis() - time1 >= 10000) {    // 10秒超时
+     break;
+   }
+ }
+
+ if (Flag_Recognize) {
+   switch (good){
+     case '0':
+       break;
+     case '1':
+       break;
+     case '2':
+       break;
+     case '3':
+       break;
+     case '4':
+       break;
+     case '5':
+       break;
+     case '6':
+       break;
+     case '7':
+       break;
+     case '8':
+       break;
+     case '9':
+       break;
+     case '10':
+       break;
+     case '11':
+       break;
+     default:
+       break;
+   }
+ }
+ else{
+   //转串口通信超时处理
+   Serial.print("串口通信超时");
+ }
+}
