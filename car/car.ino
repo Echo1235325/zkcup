@@ -126,16 +126,16 @@ void calculate_pid(){
     double Kp = 1.65, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
     if (Flag_Begin) {
         if(count2 >= 0){
-        time = millis();
-        Serial.print(time);
-        Serial.print(' ');
-        Serial.print(PulseCounter_L);
-        Serial.print(' ');
-        Serial.print(PulseCounter_R);
-        Serial.print(' ');
-        Serial.print(V_NOW_L);
-        Serial.print(' ');
-        Serial.print(V_NOW_R);
+        // time = millis();
+        // Serial.print(time);
+        // Serial.print(' ');
+        // Serial.print(PulseCounter_L);
+        // Serial.print(' ');
+        // Serial.print(PulseCounter_R);
+        // Serial.print(' ');
+        // Serial.print(V_NOW_L);
+        // Serial.print(' ');
+        // Serial.print(V_NOW_R);
         count2 = 0;
       }
   
@@ -191,16 +191,26 @@ void Control(int Receive_Data){
         setpoint_R = Value_Setpoint;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
     }
     if(Flag_Backward) {
-        setpoint_L = -Value_Setpoint+1;
-        setpoint_R = -Value_Setpoint;
+        V_NOW_L = -150;
+        V_NOW_R = -150;
+        Limit_Pwm();
+        Set_Pwm();
     }
     if(Flag_Left) {
-        setpoint_L = -Value_Setpoint+1;
-        setpoint_R = Value_Setpoint;
+        V_NOW_L = -165;
+        V_NOW_R = 165;
+        Limit_Pwm();
+        Set_Pwm();
+//        setpoint_L = -Value_Setpoint;
+//        setpoint_R = Value_Setpoint;
     }
     if(Flag_Right) {
-        setpoint_L = Value_Setpoint-1;
-        setpoint_R = -Value_Setpoint;
+        V_NOW_L = 165;
+        V_NOW_R = -165;
+        Limit_Pwm();
+        Set_Pwm();
+//        setpoint_L = Value_Setpoint;
+//        setpoint_R = -Value_Setpoint;
     }
 }
 
@@ -212,36 +222,38 @@ void Control(int Receive_Data){
 **************************************************************************/
 void Turn_Left(){
 //  Serial.println("左转！");
-// Control(2);
-// delay(70);
+ Stop_PID();
+ Control(2);
+ delay(480);
  Control(4);
  delay(200);
  Read_RedValue();
  while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
-          !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
+          Value_Red_ForWard[2] && Value_Red_ForWard[3])){
             Read_RedValue();
       }
-// Control(3);
-// delay(70);
- Stop();
-//  Direction = (Direction+1) % 4;
+  Direction = (Direction + 1) % 4;
+//  Stop();
+  Start_PID();
 }
 
 void Turn_Right(){
-// Control(2);
-// delay(70);
+ Stop_PID();
+ Control(2);
+ delay(480);
  Control(3);
  delay(200);
  Read_RedValue();
- while(!(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+ while(!(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //正常
           !Value_Red_ForWard[2] && Value_Red_ForWard[3])){
             Read_RedValue();
       }
-//  Direction = (Direction - 1) % 4;
-//  if (Direction < 0) {
-//    Direction += 4;
-//  }
-  Stop();
+//  Serial.println("  右转");
+  Direction = (Direction - 1) % 4;
+  if (Direction < 0) {
+    Direction += 4;
+  }
+  Start_PID();
 }
 
 /**************************************************************************
@@ -288,36 +300,6 @@ void Rectify(){
                  setpoint_L = Value_Setpoint - bias-2;
     }
  }
-
-
-/**************************************************************************
-函数功能：红外传感转向  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-// void Rectify_Turn(){
-//     if(!Value_Red_Center[0] && Value_Red_Center[1] &&
-//        !Value_Red_Center[2] && Value_Red_Center[3]){
-//         Flag_Count = 0;
-//        }
-//     if(!Value_Red_Center[0] && !Value_Red_Center[1] &&
-//        !Value_Red_Center[2] && !Value_Red_Center[3]){
-//             if(Flag_Count == 0){
-//               Position_X ++;
-//               Flag_Count = 1;
-//             }
-//             if(Position_X == 4){
-//               Turn_Left();
-//               Control(1);
-//             }
-//             if(Position_X == 5){
-//               Turn_Left();
-//               Control(1);
-//               Position_X = 0;
-//             }
-//     }
-//  }
-
  
 
 void setup() {
@@ -352,14 +334,17 @@ void setup() {
 
 
     Serial.begin(9600);
-    attachInterrupt(0,Stop,LOW); //外部中断，停止
+    attachInterrupt(0,Stop1,LOW); //外部中断，停止
     attachInterrupt(3,ReadEncoder_L, CHANGE);
     attachInterrupt(2,ReadEncoder_R, CHANGE);
     FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
 
-    Now_Point.x = Now_Point.y = 0;
     move_state = 0;
     M = 0;
+    Now_Point.x = 8;
+    Now_Point.y = 0;
+    Path_Planning(8, 1, 9, 3);
+    Next_Point = Dequene();
 }
 
 void Exam_arrval_line(void){
@@ -374,20 +359,35 @@ void Exam_arrval_line(void){
               Now_Point = Next_Point;
               if (!QueneIsEmpty()) {
                 Next_Point = Dequene();
+                if(!QueneIsEmpty() && (Now_Point.x == Next_Point.x  &&  Now_Point.y == Next_Point.y)){
+                  Next_Point = Dequene();
+                }
+                Serial.println("Dequene:----------------------------");
+                Serial.print("Now_Point = (");
+                Serial.print(Now_Point.x);
+                Serial.print(", ");
+                Serial.print(Now_Point.y);
+                Serial.print(")   ");
+                Serial.print("Next_Point = (");
+                Serial.print(Next_Point.x);
+                Serial.print(", ");
+                Serial.print(Next_Point.y);
+                Serial.println(")");
               }
               else{
+                Serial.print("Quene Is Empty!");
+                
               }
             }
        }
 }
 
-int count_p = 0;
 
 void Movement_block(void) {
   // 检查是否到点
     Read_RedValue();
     Exam_arrval_line();
-  // 先计算下个状态的direction
+//  // 先计算下个状态的direction
     Cal_Direction();
   switch (move_state){
     case 1:
@@ -427,7 +427,6 @@ void loop(){
         move_state = 1;
         Start_PID();
         Control(move_state);
-        Path_Planning(0, 0, 2, 1);
     }
     if (Flag_Begin == 1) {
       switch (M){
@@ -508,15 +507,10 @@ bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的
 
 void Cal_Direction(void){
 /* 先从Next_Point和当前坐标之间的关系得到Target_Direction */
-//  if (Now_Point == Next_Point) {
-//    // 转停车状态
-//    M = 1;
-//    move_state = 5;
-//    return;
-//  }
+
   int Target;
   if (Now_Point.x == Next_Point.x  && Now_Point.y == Next_Point.y) {
-    move_state = 1;
+    move_state = 5;   // 转停车
     M = 1;
     return;
   }
@@ -534,6 +528,16 @@ void Cal_Direction(void){
   }
   else {
     Serial.println("Error: Cal_Direction中Now_Point和Next_Point的关系错误");
+    Serial.print("Now_Point = (");
+    Serial.print(Now_Point.x);
+    Serial.print(", ");
+    Serial.print(Now_Point.y);
+    Serial.print(")   ");
+    Serial.print("Next_Point = (");
+    Serial.print(Next_Point.x);
+    Serial.print(", ");
+    Serial.print(Next_Point.y);
+    Serial.println(")");
     return;
   }
 //   Serial.print("当前位置 ");
@@ -551,7 +555,7 @@ void Cal_Direction(void){
     M = 1;
     move_state = 1;
   }
-  if (Target - Direction == 2 || Target - Direction == -2) {
+  else if (Target - Direction == 2 || Target - Direction == -2) {
     // Serial.println("转180度");
     //转180度
     M = 1;
@@ -570,8 +574,16 @@ void Cal_Direction(void){
     move_state = 3;
   }
   else{
-     Serial.println("Adjust_Direction,调整方向异常");
+     Serial.println("Cal_Direction,调整方向异常");
   }
+//  Serial.print("Cal_Direction: M = ");
+//  Serial.print(M);
+//  Serial.print("  move_state = ");
+//  Serial.print(move_state);
+//  Serial.print("  Target = ");
+//  Serial.print(Target);
+//  Serial.print("  Direction = ");
+//  Serial.println(Direction);
 }
 
 
@@ -781,7 +793,7 @@ void Read_RedValue(){
 入口参数：无
 返回  值：无
 **************************************************************************/
-void Stop(){
+void Stop1(){
     Receive_Data = 0;
     Flag_Begin = 0;
     digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
@@ -790,7 +802,20 @@ void Stop(){
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
+}
+
+void Stop(){
+//    Receive_Data = 0;
+//    Flag_Begin = 0;
+    Stop_PID();
+    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
+    digitalWrite(PWMB, LOW);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
     delay(300);
+    Start_PID();
 }
 
 
@@ -821,15 +846,15 @@ double pid1(int Pulse, float Kp, float Ki, float Kd){
     derror1 = error - error_last1;
     v = Kp * error + Ki * error_int1 + Kd * derror1;
     error_last1 = error;
-//    Serial.print("error = ");
-    Serial.print(' ');
-    Serial.print(error);
-//    Serial.print("    error_int1 = ");
-    Serial.print(' ');
-    Serial.print(error_int1);
-//    Serial.print("    derror1 = ");
-    Serial.print(' ');
-    Serial.print(derror1);
+// //    Serial.print("error = ");
+//     Serial.print(' ');
+//     Serial.print(error);
+// //    Serial.print("    error_int1 = ");
+//     Serial.print(' ');
+//     Serial.print(error_int1);
+// //    Serial.print("    derror1 = ");
+//     Serial.print(' ');
+//     Serial.print(derror1);
     return v;
 }
 
@@ -841,15 +866,15 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     derror2 = error - error_last2;
     v = Kp * error + Ki * error_int2 + Kd * derror2;
     error_last2 = error;
-//    Serial.print("error = ");
-    Serial.print(' ');
-    Serial.print(error);
-//    Serial.print("    error_int2 = ");
-    Serial.print(' ');
-    Serial.print(error_int2);
-//    Serial.print("    derror2 = ");
-    Serial.print(' ');
-    Serial.println(derror2);
+// //    Serial.print("error = ");
+//     Serial.print(' ');
+//     Serial.print(error);
+// //    Serial.print("    error_int2 = ");
+//     Serial.print(' ');
+//     Serial.print(error_int2);
+// //    Serial.print("    derror2 = ");
+//     Serial.print(' ');
+//     Serial.println(derror2);
     return v;
 }
 
