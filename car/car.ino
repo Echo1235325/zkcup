@@ -11,7 +11,7 @@ typedef struct quene{     // 用于储存路径的队列
   Point Road[80];
 } Quene;
 
-const bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
+bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
                           {0,1,1,1,1,1,1,1,1,1,1,0},
@@ -135,13 +135,14 @@ void calculate_pid(){
         Serial.print(V_NOW_L);
         Serial.print(' ');
         Serial.print(V_NOW_R);
-        
         count2 = 0;
       }
   
       V_NOW_L += pid1(PulseCounter_L, Kp, Ki, Kd);
       V_NOW_R += pid2(PulseCounter_R, Kp, Ki, Kd);
+
       Limit_Pwm();
+      Set_Pwm();
       PulseCounter_L = PulseCounter_R = 0;
       if (count > count_Ti) {
         count = 0;
@@ -152,89 +153,19 @@ void calculate_pid(){
     }
 }
 
-double pid1(int Pulse, float Kp, float Ki, float Kd){
-    int error;
-    static float v;
-    error = setpoint_L - Pulse;
-    error_int1 += error;
-    derror1 = error - error_last1;
-    v = Kp * error + Ki * error_int1 + Kd * derror1;
-    error_last1 = error;
-//    Serial.print("error = ");
-    Serial.print(' ');
-    Serial.print(error);
-//    Serial.print("    error_int1 = ");
-    Serial.print(' ');
-    Serial.print(error_int1);
-//    Serial.print("    derror1 = ");
-    Serial.print(' ');
-    Serial.print(derror1);
-    if(v > 255){
-      v = 220;
-    }
-    if(v < -255){
-      v = -220;
-    }
-    return v;
-}
-
-double pid2(int Pulse, float Kp, float Ki, float Kd){
-    int error;
-    static float v;
-    error = setpoint_R - Pulse;
-    error_int2 += error;
-    derror2 = error - error_last2;
-    v = Kp * error + Ki * error_int2 + Kd * derror2;
-    error_last2 = error;
-//    Serial.print("error = ");
-    Serial.print(' ');
-    Serial.print(error);
-//    Serial.print("    error_int2 = ");
-    Serial.print(' ');
-    Serial.print(error_int2);
-//    Serial.print("    derror2 = ");
-    Serial.print(' ');
-    Serial.println(derror2);
-    if(v > 255){
-      v = 220;
-    }
-    if(v < -255){
-      v = -220;
-    }
-    return v;
-}
-
-
 /**************************************************************************
 函数功能：这里根据V_NOW_L和V_NOW_R的正负决定电机的转动方向, 并且给PWMA、PWMB赋值
 入口参数：MotorA, MotorB
 返回  值：无
 **************************************************************************/
-void Set_Pwm()
-{
+void Set_Pwm(){
+  int DIFFERENCE = 0;
   if (V_NOW_L > 0)     digitalWrite(IN1, HIGH),      digitalWrite(IN2, LOW);  //TB6612的电平控制
   else             digitalWrite(IN1, LOW),       digitalWrite(IN2, HIGH); //TB6612的电平控制
-  analogWrite(PWMA, abs(V_NOW_L)); //赋值给PWM寄存器
+  analogWrite(PWMA, abs(V_NOW_L) - DIFFERENCE); 
   if (V_NOW_R > 0) digitalWrite(IN3, HIGH),     digitalWrite(IN4, LOW); //TB6612的电平控制
   else        digitalWrite(IN3, LOW),      digitalWrite(IN4, HIGH); //TB6612的电平控制
-  analogWrite(PWMB, abs(V_NOW_R));//赋值给PWM寄存器
-}
-
-/**************************************************************************
-函数功能：限制PWM赋值  
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Limit_Pwm(void)
-{
-  int Amplitude = 250;  //===PWM满幅是255 限制在250
-  int DIFFERENCE = 1;
-  if(Flag_Forward==1)  V_NOW_L -=DIFFERENCE;  //DIFFERENCE是一个衡量平衡小车电机和机械安装差异的一个变量。直接作用于输出，让小车具有更好的一致性。
-  if(Flag_Backward==1)   V_NOW_L-=DIFFERENCE;
-  if (V_NOW_R < -Amplitude) V_NOW_R = -Amplitude;
-  if (V_NOW_R > Amplitude)  V_NOW_R = Amplitude;
-  if (V_NOW_L < -Amplitude) V_NOW_L = -Amplitude;
-  if (V_NOW_L > Amplitude)  V_NOW_L = Amplitude;
+  analogWrite(PWMB, abs(V_NOW_R));
 }
 
 
@@ -256,7 +187,7 @@ void Control(int Receive_Data){
         V_NOW_L = NormalSpeed;
         V_NOW_R = NormalSpeed;
         setpoint_L = Value_Setpoint;
-        setpoint_R = Value_Setpoint-1;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
+        setpoint_R = Value_Setpoint;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
     }
     if(Flag_Backward) {
         V_NOW_L = -NormalSpeed;
@@ -278,8 +209,6 @@ void Control(int Receive_Data){
         setpoint_R = -Value_Setpoint;
         Serial.println("右转");
     }
-    Set_Pwm();
-    Limit_Pwm();
 }
 
 
@@ -317,40 +246,6 @@ void Control(int Receive_Data){
 //  }
 //}
 
-
- /**************************************************************************
-函数功能：读取红外传感当前电平  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Read_RedValue(){
-    Value_Red_ForWard[0] = digitalRead(Red_Forward_0);
-    Value_Red_ForWard[1] = digitalRead(Red_Forward_1);
-    Value_Red_ForWard[2] = digitalRead(Red_Forward_2);
-    Value_Red_ForWard[3] = digitalRead(Red_Forward_3);
-    Value_Red_Center[0] = digitalRead(Red_Center_0);
-    Value_Red_Center[1] = digitalRead(Red_Center_1);
-    Value_Red_Center[2] = digitalRead(Red_Center_2);
-    Value_Red_Center[3] = digitalRead(Red_Center_3);
-}
-
-
-/**************************************************************************
-函数功能：车轮电机停止  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Stop(){
-    Receive_Data = 0;
-    Flag_Begin = 0;
-    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
-    digitalWrite(PWMB, LOW);
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, LOW);
-}
-
 /**************************************************************************
 函数功能：红外传感纠偏  作者：Ding
 入口参数：无
@@ -358,11 +253,11 @@ void Stop(){
 **************************************************************************/
 void Rectify(){
 
-    if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//左大出界，向右纠偏
+    if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//左中出界
             !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
                 setpoint_R = Value_Setpoint - 2;
     }
-    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//右大出界，向左纠偏
+    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//右中出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
                 setpoint_L = Value_Setpoint - 2;
     }
@@ -374,25 +269,22 @@ void Rectify(){
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
                 setpoint_L = setpoint_R = Value_Setpoint;
     }
-    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左出界
+    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左小出界
             !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
                  setpoint_R = Value_Setpoint - 1;
     }
-    else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右出界
+    else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右小出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
                  setpoint_L = Value_Setpoint - 1;
     }
-    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左出界
+    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左大出界
             Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
-                 setpoint_R = Value_Setpoint - 3;
+                 setpoint_R = Value_Setpoint - 2;
     }
-    else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右出界
+    else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右大出界
             Value_Red_ForWard[2] && Value_Red_ForWard[3]){
-                 setpoint_L = Value_Setpoint - 3;
-                 //V_NOW_R = NormalSpeed;
+                 setpoint_L = Value_Setpoint - 2;
     }
-    Limit_Pwm();
-    Set_Pwm();
  }
 
 
@@ -475,11 +367,10 @@ void Movement_block(void) {
   //定位函数, 给出当前坐标值
   // 先计算下个状态的direction
   // Cal_Direction();
-  // pid 计算
   switch (move_state)
   {
     case 1:
-      Set_Pwm();
+      Rectify();
       break;
     case 2:
       break;
@@ -556,7 +447,7 @@ void loop(){
 
 
 /* ---------------------------------------------------------------------- */
-/* 障碍物检查程序，检查一条直线上是否存在障碍物 */
+/* 障碍物检查程序，检查地图中的一条直线上是否存在障碍物 */
 /* ---------------------------------------------------------------------- */
 
 int i;
@@ -854,4 +745,98 @@ void ReadEncoder_R(void){
       PulseCounter_R++;
     }
   }
+}
+
+
+ /**************************************************************************
+函数功能：读取红外传感当前电平  作者：Ding
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Read_RedValue(){
+    Value_Red_ForWard[0] = digitalRead(Red_Forward_0);
+    Value_Red_ForWard[1] = digitalRead(Red_Forward_1);
+    Value_Red_ForWard[2] = digitalRead(Red_Forward_2);
+    Value_Red_ForWard[3] = digitalRead(Red_Forward_3);
+    Value_Red_Center[0] = digitalRead(Red_Center_0);
+    Value_Red_Center[1] = digitalRead(Red_Center_1);
+    Value_Red_Center[2] = digitalRead(Red_Center_2);
+    Value_Red_Center[3] = digitalRead(Red_Center_3);
+}
+
+
+/**************************************************************************
+函数功能：车轮电机停止  作者：Ding
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Stop(){
+    Receive_Data = 0;
+    Flag_Begin = 0;
+    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
+    digitalWrite(PWMB, LOW);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
+}
+
+
+/**************************************************************************
+函数功能：限制PWM大小 
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Limit_Pwm(void)
+{
+  int Amplitude = 250;  //===PWM满幅是255 限制在250
+  if (V_NOW_R < -Amplitude) V_NOW_R = -Amplitude;
+  if (V_NOW_R > Amplitude)  V_NOW_R = Amplitude;
+  if (V_NOW_L < -Amplitude) V_NOW_L = -Amplitude;
+  if (V_NOW_L > Amplitude)  V_NOW_L = Amplitude;
+}
+
+/**************************************************************************
+函数功能：pid速度计算  
+入口参数：无
+返回  值：无
+**************************************************************************/
+double pid1(int Pulse, float Kp, float Ki, float Kd){
+    int error;
+    static float v;
+    error = setpoint_L - Pulse;
+    error_int1 += error;
+    derror1 = error - error_last1;
+    v = Kp * error + Ki * error_int1 + Kd * derror1;
+    error_last1 = error;
+//    Serial.print("error = ");
+    Serial.print(' ');
+    Serial.print(error);
+//    Serial.print("    error_int1 = ");
+    Serial.print(' ');
+    Serial.print(error_int1);
+//    Serial.print("    derror1 = ");
+    Serial.print(' ');
+    Serial.print(derror1);
+    return v;
+}
+
+double pid2(int Pulse, float Kp, float Ki, float Kd){
+    int error;
+    static float v;
+    error = setpoint_R - Pulse;
+    error_int2 += error;
+    derror2 = error - error_last2;
+    v = Kp * error + Ki * error_int2 + Kd * derror2;
+    error_last2 = error;
+//    Serial.print("error = ");
+    Serial.print(' ');
+    Serial.print(error);
+//    Serial.print("    error_int2 = ");
+    Serial.print(' ');
+    Serial.print(error_int2);
+//    Serial.print("    derror2 = ");
+    Serial.print(' ');
+    Serial.println(derror2);
+    return v;
 }
