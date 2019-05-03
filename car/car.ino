@@ -241,6 +241,7 @@ void Turn_Right(){
 //  if (Direction < 0) {
 //    Direction += 4;
 //  }
+  Stop();
 }
 
 /**************************************************************************
@@ -426,7 +427,7 @@ void loop(){
         move_state = 1;
         Start_PID();
         Control(move_state);
-        MOVE(0, 0, 2, 1);
+        Path_Planning(0, 0, 2, 1);
     }
     if (Flag_Begin == 1) {
       switch (M){
@@ -514,6 +515,11 @@ void Cal_Direction(void){
 //    return;
 //  }
   int Target;
+  if (Now_Point.x == Next_Point.x  && Now_Point.y == Next_Point.y) {
+    move_state = 1;
+    M = 1;
+    return;
+  }
   if (Now_Point.x == Next_Point.x - 1 && Now_Point.y == Next_Point.y) {
     Target = 3;
   }
