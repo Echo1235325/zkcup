@@ -39,6 +39,11 @@ bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
                     {0,1,1,1,1,1,1,1,1,1,1,0},
                     {0,0,0,0,0,0,0,0,0,0,0,0}};
 
+static bool IsFullA[2][6];     
+static bool IsFullB[2][6];
+static bool IsFullC[2][6];
+static bool IsFullD[2][6];              
+
 
 
 
@@ -193,7 +198,6 @@ void Set_Pwm(){
 返回  值：无
 **************************************************************************/
 void Control(int Receive_Data){
-
     switch (Receive_Data)   {
       case 0x01: Flag_Forward = 1, Flag_Backward = 0, Flag_Left = 0, Flag_Right = 0;   break;              //前进
       case 0x02: Flag_Forward = 0, Flag_Backward = 1, Flag_Left = 0, Flag_Right = 0;   break;              //后转
@@ -249,7 +253,6 @@ void Turn_Left(){
       }
   Direction = (Direction + 1) % 4;
   Start_PID();
-//  Stop1();
 }
 
 void Turn_Right(){
@@ -271,12 +274,24 @@ void Turn_Right(){
   Start_PID();
 }
 
+
+void Turn_Left_For_TA(){
+//  Serial.println("左转！");
+ Control(4);
+ delay(400);
+ Read_RedValue();
+ while(!( Value_Red_ForWard[0] && !Value_Red_ForWard[1] && 
+            !Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
+            Read_RedValue();
+      }
+  Direction = (Direction + 1) % 4;
+}
+
 void Turn_Around(){
-  Turn_Left();
   Stop_PID();
-  // 中间需要一些调整代码
+  Turn_Left_For_TA();
+  Turn_Left_For_TA();
   Start_PID();
-  Turn_Left();
 }
 
 /**************************************************************************
@@ -366,7 +381,7 @@ void setup() {
     M = 0;
     Now_Point.x = 8;
     Now_Point.y = 0;
-    Path_Planning(8, 1, 6, 3);
+    Path_Planning(8, 1, 8, 5);
     Next_Point = Dequene();
 }
 
@@ -397,19 +412,16 @@ void Exam_arrval_Point(void){
               }
               else{
                 Serial.print("Quene Is Empty!");
-                
               }
             }
        }
 }
 
 
-void Movement_block(void) {
-  // 检查是否到点
-    Read_RedValue();
-    Exam_arrval_Point();
-//  // 先计算下个状态的direction
-    Cal_Direction();
+void Movement_block(void) {       // 从A到B的巡线模块
+  Read_RedValue();
+  Exam_arrval_Point();
+  Cal_Direction();
   switch (move_state){
     case 1:
       Read_RedValue();
@@ -417,6 +429,7 @@ void Movement_block(void) {
       break;
     case 2:
       Turn_Left();
+      Start_PID();
       break;
     case 3:
       Turn_Right();
@@ -426,7 +439,7 @@ void Movement_block(void) {
       break;
     case 5:
       Stop();
-      break;
+      break;      
     default:
       Serial.println("Movement_block, case异常情况");
       break;
@@ -434,9 +447,94 @@ void Movement_block(void) {
 }
 
 
+
+
+
 void Servo_Stepper_block(void){
 }
 
+int catch_move_state;
+
+void Catch_Move(void){
+  switch(catch_move_state){
+    case 1:       // 货架在左边的进入
+      Turn_Left();
+      Control(1);
+      Start_PID();
+      int time3;
+      time3 = millis();
+      while(millis() - time3 <= 1500){
+        Read_RedValue();
+        Rectify();
+      }
+      Stop();  
+      ///// 拍摄 + 抓
+      Control(2);     // 倒车
+      delay(1500);
+      Stop();         // 完成
+      catch_move_state = 3;
+    break;
+    case 2:       // 货架在右边的进入
+      Turn_Right();
+      Control(1);
+      int time3;
+      time3 = millis();
+      while(millis() - time3 <= 1500){
+        Read_RedValue();
+        Rectify();
+      }
+      Stop();  
+      ///// 拍摄 + 抓
+      Control(2);     // 倒车
+      delay(1500);
+      Stop();         // 完成
+      catch_move_state = 3;
+    break;
+    case 3:
+      Stop1();
+    break;
+    case 4:
+      // 放物品——低
+      Control(1);
+      Start_PID();
+      int time3;
+      time3 = millis();
+      while(millis() - time3 <= 500){
+        Read_RedValue();
+        Rectify();
+      }
+      Stop(); 
+      /// 放货物
+    break;
+    case 5:
+      // 放物品——高
+      Control(1);
+      Start_PID();
+      int time3;
+      time3 = millis();
+      while(millis() - time3 <= 500){
+        Read_RedValue();
+        Rectify();
+      }
+      Stop(); 
+      /// 放货物
+    break;
+  }
+}
+
+
+
+
+void Judge_M(void){
+  M = 4;
+  catch_move_state = 1;
+}
+
+
+bool Init_Scan_Shelf_Flag = 1;
+void Init_Scan_Shelf(void){
+  Path_Planning()
+}
 
 void loop(){
     if(digitalRead(collide_1) == LOW) {
@@ -450,6 +548,8 @@ void loop(){
     }
     if (Flag_Begin == 1) {
       switch (M){
+        case 0:
+          Judge_M();
         case 1:
           Movement_block();
           break;
@@ -458,9 +558,19 @@ void loop(){
           break;
         case 3:
 //          Classfy_block();
-        default:
+          Stop1();
           break;
+        case 4:
+          Catch_Move();
+        case 6:
+          Init_Scan_Shelf();
+        default:
+          break;          
       }
+      Serial.print("move_state = ");
+      Serial.print(move_state);
+      Serial.print("    M = ");
+      Serial.println(M);
   }
 }
 
@@ -529,9 +639,8 @@ void Cal_Direction(void){
 /* 先从Next_Point和当前坐标之间的关系得到Target_Direction */
 
   int Target;
-  if (Now_Point.x == Next_Point.x  && Now_Point.y == Next_Point.y) {
-    move_state = 5;   // 转停车
-    M = 1;
+  if (QueneIsEmpty()) {
+    M = 0;
     return;
   }
   if (Now_Point.x == Next_Point.x - 1 && Now_Point.y == Next_Point.y) {
@@ -596,14 +705,14 @@ void Cal_Direction(void){
   else{
      Serial.println("Cal_Direction,调整方向异常");
   }
-//  Serial.print("Cal_Direction: M = ");
-//  Serial.print(M);
-//  Serial.print("  move_state = ");
-//  Serial.print(move_state);
-//  Serial.print("  Target = ");
-//  Serial.print(Target);
-//  Serial.print("  Direction = ");
-//  Serial.println(Direction);
+  Serial.print("Cal_Direction: M = ");
+  Serial.print(M);
+  Serial.print("  move_state = ");
+  Serial.print(move_state);
+  Serial.print("  Target = ");
+  Serial.print(Target);
+  Serial.print("  Direction = ");
+  Serial.println(Direction);
 }
 
 
@@ -896,57 +1005,57 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     return v;
 }
 
-//
-//void Classfy_block(void){
-// // 可能需要做一些检查
-// int time1;
-// int good;    // 物品代号
-// int Flag_Recognize = false;
-// time1 = millis();
-// Serial.println("C");        // 给nnpred程序发送开始识别指令C
-// while(1){  // 等待nnpred计算完成返回计算结果
-//   if (Serial.available()) {
-//     good = Serial.read();
-//     Flag_Recognize = true;
-//     break;
-//   }
-//   if (millis() - time1 >= 10000) {    // 10秒超时
-//     break;
-//   }
-// }
-//
-// if (Flag_Recognize) {
-//   switch (good){
-//     case '0':
-//       break;
-//     case '1':
-//       break;
-//     case '2':
-//       break;
-//     case '3':
-//       break;
-//     case '4':
-//       break;
-//     case '5':
-//       break;
-//     case '6':
-//       break;
-//     case '7':
-//       break;
-//     case '8':
-//       break;
-//     case '9':
-//       break;
-//     case '10':
-//       break;
-//     case '11':
-//       break;
-//     default:
-//       break;
-//   }
-// }
-// else{
-//   //转串口通信超时处理
-//   Serial.print("串口通信超时");
-// }
-//}
+
+void Classfy_block(void){
+// 可能需要做一些检查
+int time1;
+int good;    // 物品代号
+int Flag_Recognize = false;
+time1 = millis();
+Serial.println("C");        // 给nnpred程序发送开始识别指令C
+while(1){  // 等待nnpred计算完成返回计算结果
+  if (Serial.available()) {
+    good = Serial.read();
+    Flag_Recognize = true;
+    break;
+  }
+  if (millis() - time1 >= 10000) {    // 10秒超时
+    break;
+  }
+}
+
+if (Flag_Recognize) {
+  switch (good){
+    case 'a':
+      break;
+    case 'b':
+      break;
+    case 'c':
+      break;
+    case 'd':
+      break;
+    case 'f':
+      break;
+    case 'g':
+      break;
+    case 'h':
+      break;
+    case 'i':
+      break;
+    case 'j':
+      break;
+    case 'k':
+      break;
+    case 'l':
+      break;
+    case 'm':
+      break;
+    default:
+      break;
+  }
+}
+else{
+  //转串口通信超时处理
+  Serial.print("串口通信超时");
+}
+}
