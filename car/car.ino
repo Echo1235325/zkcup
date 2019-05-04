@@ -1,4 +1,19 @@
 #include <FlexiTimer2.h>
+#include <Servo.h> //舵机操作
+
+// Servo
+Servo STE_turn; //云台舵机
+Servo STE_cat;  //爪子舵机
+int Flag_STEturn = 0;
+int pos = 0;
+int angle = 0;
+
+// Servo
+const int PLS = 5;
+const int DIR = 6;
+const int STEP_ENA = 23;
+int Step_val = 0;
+int Step_Flag = 0;
 
 typedef struct point{
   int x;
