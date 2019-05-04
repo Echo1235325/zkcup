@@ -1,6 +1,8 @@
 #include <FlexiTimer2.h>
 #include <Servo.h> //舵机操作
 
+
+
 // Servo
 Servo STE_turn; //云台舵机
 Servo STE_cat;  //爪子舵机
@@ -8,7 +10,14 @@ int Flag_STEturn = 0;
 int pos = 0;
 int angle = 0;
 
-// Servo
+// 超声波
+unsigned int H_echoPin = 12;   // 将Arduino 的Pin2 连接至US-100 的Echo/RX
+unsigned int H_trigPin = 13;   // 将Arduino 的Pin3 连接至US-100 的Trig/TX
+unsigned int L_echoPin = 10;   // 将Arduino 的Pin2 连接至US-100 的Echo/RX
+unsigned int L_trigPin = 11;   // 将Arduino 的Pin3 连接至US-100 的Trig/TX
+int Flag = 0;
+
+// Stepper
 const int PLS = 5;
 const int DIR = 6;
 const int STEP_ENA = 23;
@@ -42,8 +51,20 @@ bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
 static bool IsFullA[2][6];     
 static bool IsFullB[2][6];
 static bool IsFullC[2][6];
-static bool IsFullD[2][6];              
+static bool IsFullD[2][6];
 
+
+// 中央购物车是否为空
+static bool IsEmptyCarA[3];
+static bool IsEmptyCarB[3];
+static bool IsEmptyCarC[3];
+static bool IsEmptyCarD[3];
+
+// 每抓一个购物车上的货物底下的数值要+1
+int Count_Get_Car_A = 0;
+int Count_Get_Car_B = 0;
+int Count_Get_Car_C = 0;
+int Count_Get_Car_D = 0;
 
 
 
@@ -61,8 +82,6 @@ int IN4 = 38; //引脚改动
 int PWMA = 7; //左轮
 int PWMB = 8;
 
-int TrigPin = 8;
-int EchoPin = 9;
 //下为红外部分引脚
 const int Red_Forward_0 = 24;   // 背对从左往右为  ， 0->3 
 const int Red_Forward_1 = 25;
@@ -360,8 +379,12 @@ void setup() {
     pinMode(ENCODER_R_A, INPUT); 
     pinMode(ENCODER_L_B, INPUT);
     pinMode(ENCODER_R_B, INPUT); 
-    pinMode(TrigPin,OUTPUT);
-    pinMode(EchoPin,INPUT);
+    STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
+    STE_cat.attach(3);
+    pinMode(PLS,OUTPUT);
+    pinMode(DIR,OUTPUT);
+    pinMode(STEP_ENA,OUTPUT);
+
     //初始化
     digitalWrite(IN1, LOW);          //TB6612控制引脚拉低
     digitalWrite(IN2, LOW);          //TB6612控制引脚拉低
@@ -370,6 +393,11 @@ void setup() {
     analogWrite(PWMA, LOW);          //TB6612控制引脚拉低
     analogWrite(PWMB, LOW);          //TB6612控制引脚拉低
 
+    pinMode(H_echoPin, INPUT);  // 设置echoPin 为输入模式。
+    pinMode(H_trigPin, OUTPUT); // 设置trigPin 为输出模式。
+    pinMode(L_echoPin, INPUT);  // 设置echoPin 为输入模式。
+    pinMode(L_trigPin, OUTPUT); // 设置trigPin 为输出模式。
+
 
     Serial.begin(9600);
     attachInterrupt(0,Stop1,LOW); //外部中断，停止
@@ -377,12 +405,12 @@ void setup() {
     attachInterrupt(2,ReadEncoder_R, CHANGE);
     FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
 
-    move_state = 0;
-    M = 0;
-    Now_Point.x = 8;
-    Now_Point.y = 0;
-    Path_Planning(8, 1, 8, 5);
-    Next_Point = Dequene();
+    // move_state = 0;
+    // M = 0;
+    // Now_Point.x = 8;
+    // Now_Point.y = 0;
+    // Path_Planning(8, 1, 8, 5);
+    // Next_Point = Dequene();
 }
 
 void Exam_arrval_Point(void){
@@ -418,31 +446,36 @@ void Exam_arrval_Point(void){
 }
 
 
-void Movement_block(void) {       // 从A到B的巡线模块
-  Read_RedValue();
-  Exam_arrval_Point();
-  Cal_Direction();
-  switch (move_state){
-    case 1:
-      Read_RedValue();
-      Rectify();
-      break;
-    case 2:
-      Turn_Left();
-      Start_PID();
-      break;
-    case 3:
-      Turn_Right();
-      break;
-    case 4:
-      Turn_Around();
-      break;
-    case 5:
-      Stop();
-      break;      
-    default:
-      Serial.println("Movement_block, case异常情况");
-      break;
+void Movement_block(int x1, int y1, int x2, int y2) {       // 从A到B的巡线模块
+  Path_Planning(x1, y1, x2, y2);
+  Now_Point = {x1, y1};
+  Next_Point = Dequene();
+  Start_PID();
+  while(!QueneIsEmpty()){
+    Read_RedValue();
+    Exam_arrval_Point();
+    Cal_Direction();
+    switch (move_state){
+      case 1:
+        Read_RedValue();
+        Rectify();
+        break;
+      case 2:
+        Turn_Left();
+        break;
+      case 3:
+        Turn_Right();
+        break;
+      case 4:
+        Turn_Around();
+        break;
+      case 5:
+        Stop();
+        break;      
+      default:
+        Serial.println("Movement_block, case异常情况");
+        break;
+    }
   }
 }
 
@@ -453,87 +486,194 @@ void Movement_block(void) {       // 从A到B的巡线模块
 void Servo_Stepper_block(void){
 }
 
-int catch_move_state;
 
-void Catch_Move(void){
-  switch(catch_move_state){
-    case 1:       // 货架在左边的进入
-      Turn_Left();
-      Control(1);
-      Start_PID();
-      int time3;
-      time3 = millis();
-      while(millis() - time3 <= 1500){
-        Read_RedValue();
-        Rectify();
-      }
-      Stop();  
-      ///// 拍摄 + 抓
-      Control(2);     // 倒车
-      delay(1500);
-      Stop();         // 完成
-      catch_move_state = 3;
-    break;
-    case 2:       // 货架在右边的进入
-      Turn_Right();
-      Control(1);
-      int time3;
-      time3 = millis();
-      while(millis() - time3 <= 1500){
-        Read_RedValue();
-        Rectify();
-      }
-      Stop();  
-      ///// 拍摄 + 抓
-      Control(2);     // 倒车
-      delay(1500);
-      Stop();         // 完成
-      catch_move_state = 3;
-    break;
-    case 3:
-      Stop1();
-    break;
-    case 4:
-      // 放物品——低
-      Control(1);
-      Start_PID();
-      int time3;
-      time3 = millis();
-      while(millis() - time3 <= 500){
-        Read_RedValue();
-        Rectify();
-      }
-      Stop(); 
-      /// 放货物
-    break;
-    case 5:
-      // 放物品——高
-      Control(1);
-      Start_PID();
-      int time3;
-      time3 = millis();
-      while(millis() - time3 <= 500){
-        Read_RedValue();
-        Rectify();
-      }
-      Stop(); 
-      /// 放货物
-    break;
-  }
+void Catch_Move(char BuyCar){
+    // 先决定左转 右转 或不转
+    switch (BuyCar)
+    {
+      case 'A':
+        switch (Direction)
+        {
+          case 0:
+            Turn_Left();
+            Serial.println("Catch_Move: A, Direction = 0, Turn_Left");
+            break;
+          case 1:
+            Serial.println("Catch_Move: A, Direction = 1, Nop");
+            break;
+          case 2:
+            Turn_Right();
+            Serial.println("Catch_Move: A, Direction = 2, Turn_Right");
+            break;
+          case 3:
+            Serial.println("Catch_Move: A 旋转方向异常");
+        }
+        break;
+      case 'B':
+        switch (Direction)
+        {
+          case 0:
+            Serial.println("Catch_Move: B 旋转方向异常");
+            break;
+          case 1:
+            Turn_Left();
+            Serial.println("Catch_Move: B, Direction = 1, Turn_Left");
+            break;
+          case 2:
+            Serial.println("Catch_Move: B, Direction = 2, Nop");
+            break;
+          case 3:
+            Turn_Right();
+            Serial.println("Catch_Move: B, Direction = 3, Turn_Right");
+            break;
+        }
+        break;
+      case 'C':
+        switch (Direction)
+        {
+          case 0:
+            Turn_Right();
+            Serial.println("Catch_Move: C, Direction = 0, Turn_Right");
+            break;
+          case 1:
+            Serial.println("Catch_Move: C, Direction = 1, 旋转方向异常");
+            break;
+          case 2:
+            Turn_Left();
+            Serial.println("Catch_Move: C, Direction = 2, Turn_Left");
+            break;
+          case 3:
+            Serial.println("Catch_Move: C, Direction = 3, Nop");
+            break;
+        }
+        break;
+      case 'D':
+        switch (Direction)
+        {
+          case 0:
+            Serial.println("Catch_Move: D, Direction = 0, Nop");
+            break;
+          case 1:
+            Turn_Right();
+            Serial.println("Catch_Move: D, Direction = 1, Turn_Right");
+            break;
+          case 2:
+            Serial.println("Catch_Move: D, Direction = 2, 旋转方向异常");
+            break;
+          case 3:
+            Turn_Left();
+            Serial.println("Catch_Move: D, Direction = 3, Turn_Left");
+            break;
+        }
+        break;
+    }
+    Control(1);
+    Start_PID();
+    int time3;
+    time3 = millis();
+    while(millis() - time3 <= 1500){
+      Read_RedValue();
+      Rectify();
+    }
+    Stop();  
+    ///// 拍摄 + 抓
+    Control(2);     // 倒车
+    delay(1500);
+    Stop();         // 完成
 }
 
 
 
 
-void Judge_M(void){
-  M = 4;
-  catch_move_state = 1;
+bool Scan_State[3];     // 三个超声波的检测状态
+void Scan_Echo(void){
+  Scan_State[0] = Exam_items(H_trigPin, H_echoPin, 250);
+  Scan_State[1] = Exam_items(L_trigPin, L_echoPin, 250);
+  Scan_State[2] = Exam_items(Left_trigPin, Left_echoPin, 100);
 }
 
-
-bool Init_Scan_Shelf_Flag = 1;
+bool Init_Scan_Shelf_Flag = 0;
 void Init_Scan_Shelf(void){
-  Path_Planning()
+
+
+  // 扫 A 货架, 高的超声波为0, 低的超声波为1
+  Movement_block(8, 1, 10, 1);
+  Turn_Left();
+  Stop(50);
+  Scan_Echo();
+  IsFullA[0][0] = Scan_State[0];
+  IsFullA[1][0] = Scan_State[1];
+  
+  for(int i = 1; i <= 5; i++){
+    Movement_block(10, i, 10, i+1);
+    delay(50); 
+    Scan_Echo();
+    IsFullA[0][i] = Scan_State[0];
+    IsFullA[1][i] = Scan_State[1];
+    // Scan_Shelf
+  }
+
+  // 扫 B 货架
+  Movement_block(10, 6, 10, 10);
+  Turn_Left();
+  Stop(50);
+  Scan_Echo();
+  IsFullB[0][0] = Scan_State[0];
+  IsFullB[1][0] = Scan_State[1];
+
+  for(int i = 10; i >=6 ; i--){
+    Movement_block(i, 10, i-1, 10);
+    delay(50); 
+    Scan_Echo();
+    IsFullB[0][11 - i] = Scan_State[0];
+    IsFullB[1][11 - i] = Scan_State[1];
+    // Scan_Shelf
+  }
+
+  // 扫 C 货架
+  Movement_block(5, 10, 1, 10);
+  Turn_Left();
+  Stop(50);
+  Scan_Echo();
+  IsFullC[0][0] = Scan_State[0];
+  IsFullC[1][0] = Scan_State[1];
+  for(int i = 10; i >= 6; i--){
+    Movement_block(1, i, 1, i - 1);
+    delay(50); 
+    Scan_Echo();
+    IsFullC[0][11 - i] = Scan_State[0];
+    IsFullC[1][11 - i] = Scan_State[1];
+    // Scan_Shelf
+  }
+
+
+  Movement_block(1, 5, 1, 1);
+  Turn_Left();
+  Stop();
+  delay(50);
+  Scan_Echo();
+  IsFullD[0][0] = Scan_State[0];
+  IsFullD[1][0] = Scan_State[1];
+  for(int i = 1; i <= 5; i++){
+    Movement_block(1, i, 1, i + 1);
+    delay(50); 
+    Scan_Echo();
+    IsFullD[0][i] = Scan_State[0];
+    IsFullD[1][i] = Scan_State[1];
+  }
+
+
+  Init_Scan_Shelf_Flag = 1;   // 初始循环结束标志位
+  Movement_block(1, 6, 5, 3);   // 直接到D区拿货
+
+  while(Count_Get_Car_A + Count_Get_Car_B + Count_Get_Car_C + Count_Get_Car_D != 12){
+    // 没有拿够12件货物之前一直做这个循环
+    // 抓货程序
+    Catch_Move();
+    // 放到货架中
+    Move_To_Shelf();
+    // 返回离货架最近的取货点
+  }
 }
 
 void loop(){
@@ -548,10 +688,7 @@ void loop(){
     }
     if (Flag_Begin == 1) {
       switch (M){
-        case 0:
-          Judge_M();
         case 1:
-          Movement_block();
           break;
         case 2:
           Servo_Stepper_block();
@@ -560,10 +697,6 @@ void loop(){
 //          Classfy_block();
           Stop1();
           break;
-        case 4:
-          Catch_Move();
-        case 6:
-          Init_Scan_Shelf();
         default:
           break;          
       }
@@ -576,47 +709,6 @@ void loop(){
 
 
 
-/* ---------------------------------------------------------------------- */
-/* 障碍物检查程序，检查地图中的一条直线上是否存在障碍物 */
-/* ---------------------------------------------------------------------- */
-
-int i;
-
-bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的水平运动直线上是否有障碍物
-  // 遍历Map中的x0行即可
-  bool HaveObastacle = false;
-  if (y1 > y2){
-    int t;
-    t = y1;
-    y1 = y2;
-    y2 = t;
-  }
-  for(i = y1; i <= y2; i++){
-    if (Map[x0][i] == false) {
-      HaveObastacle = true;
-      break;
-    }
-  }
-  return HaveObastacle;
-}
-
-bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的垂直运动直线上是否有障碍物
-  // 遍历Map中的y0列即可
-  bool HaveObastacle = false;
-  if (x1 > x2){
-    int t;
-    t = x1;
-    x1 = x2;
-    x2 = t;
-  }
-  for(i = x1; i <= x2; i++){
-    if (Map[i][y0] == false) {
-      HaveObastacle = true;
-      break;
-    }
-  }
-  return HaveObastacle;
-}
 
 
 /* ---------------------------------------------------------------------- */
@@ -640,7 +732,7 @@ void Cal_Direction(void){
 
   int Target;
   if (QueneIsEmpty()) {
-    M = 0;
+    move_state = 5;
     return;
   }
   if (Now_Point.x == Next_Point.x - 1 && Now_Point.y == Next_Point.y) {
@@ -713,6 +805,51 @@ void Cal_Direction(void){
   Serial.print(Target);
   Serial.print("  Direction = ");
   Serial.println(Direction);
+}
+
+
+
+
+/* ---------------------------------------------------------------------- */
+/* 障碍物检查程序，检查地图中的一条直线上是否存在障碍物 */
+/* ---------------------------------------------------------------------- */
+
+int i;
+
+bool Check_obstacle_x(int x0,int y1,int y2){  // 检查从(x0, y1)到(x0, y2)的水平运动直线上是否有障碍物
+  // 遍历Map中的x0行即可
+  bool HaveObastacle = false;
+  if (y1 > y2){
+    int t;
+    t = y1;
+    y1 = y2;
+    y2 = t;
+  }
+  for(i = y1; i <= y2; i++){
+    if (Map[x0][i] == false) {
+      HaveObastacle = true;
+      break;
+    }
+  }
+  return HaveObastacle;
+}
+
+bool Check_obstacle_y(int y0,int x1,int x2){  // 检查从(x1, y0)到(x2, y0)的垂直运动直线上是否有障碍物
+  // 遍历Map中的y0列即可
+  bool HaveObastacle = false;
+  if (x1 > x2){
+    int t;
+    t = x1;
+    x1 = x2;
+    x2 = t;
+  }
+  for(i = x1; i <= x2; i++){
+    if (Map[i][y0] == false) {
+      HaveObastacle = true;
+      break;
+    }
+  }
+  return HaveObastacle;
 }
 
 
