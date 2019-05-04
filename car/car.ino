@@ -224,31 +224,35 @@ void Turn_Left(){
 //  Serial.println("左转！");
  Stop_PID();
  Control(2);
- delay(480);
+ delay(210);
  Control(4);
- delay(200);
+ delay(400);
  Read_RedValue();
- while(!( !Value_Red_Center[0]&&!Value_Red_Center[2] )){
+ while(!( Value_Red_ForWard[0] && !Value_Red_ForWard[1] && 
+            !Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
             Read_RedValue();
       }
   Direction = (Direction + 1) % 4;
   Start_PID();
+//  Stop1();
 }
 
 void Turn_Right(){
  Stop_PID();
  Control(2);
- delay(480);
+ delay(210);
  Control(3);
- delay(200);
+ delay(400);
  Read_RedValue();
- while(!( !Value_Red_Center[0]&&!Value_Red_Center[2] )){
+ while(!( Value_Red_ForWard[0] && !Value_Red_ForWard[1] && 
+            !Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
             Read_RedValue();
       }
   Direction = (Direction - 1) % 4;
   if (Direction < 0) {
     Direction += 4;
   }
+//    Stop1();
   Start_PID();
 }
 
@@ -347,17 +351,15 @@ void setup() {
     M = 0;
     Now_Point.x = 8;
     Now_Point.y = 0;
-    Path_Planning(8, 1, 9, 3);
+    Path_Planning(8, 1, 6, 3);
     Next_Point = Dequene();
 }
 
 void Exam_arrval_Point(void){
-    if(!Value_Red_Center[0] && Value_Red_Center[1] &&
-       !Value_Red_Center[2] && Value_Red_Center[3]){
+    if( Value_Red_Center[1] && Value_Red_Center[3]){
         Flag_Count = 0;
     }
-    if(!Value_Red_Center[0] && !Value_Red_Center[1] &&
-       !Value_Red_Center[2] && !Value_Red_Center[3]){
+    if( !Value_Red_Center[1] && !Value_Red_Center[3]){
             if(Flag_Count == 0){
               Flag_Count = 1;
               Now_Point = Next_Point;
@@ -808,8 +810,6 @@ void Stop1(){
 }
 
 void Stop(){
-//    Receive_Data = 0;
-//    Flag_Begin = 0;
     Stop_PID();
     digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
     digitalWrite(PWMB, LOW);
@@ -881,57 +881,57 @@ double pid2(int Pulse, float Kp, float Ki, float Kd){
     return v;
 }
 
-
-void Classfy_block(void){
- // 可能需要做一些检查
- int time1;
- int good;    // 物品代号
- Flag_Recognize = false;
- time1 = millis();
- Serial.println("C");        // 给nnpred程序发送开始识别指令C
- while(1){  // 等待nnpred计算完成返回计算结果
-   if (Serial.available()) {
-     good = Serial.read();
-     Flag_Recognize = true;
-     break;
-   }
-   if (millis() - time1 >= 10000) {    // 10秒超时
-     break;
-   }
- }
-
- if (Flag_Recognize) {
-   switch (good){
-     case '0':
-       break;
-     case '1':
-       break;
-     case '2':
-       break;
-     case '3':
-       break;
-     case '4':
-       break;
-     case '5':
-       break;
-     case '6':
-       break;
-     case '7':
-       break;
-     case '8':
-       break;
-     case '9':
-       break;
-     case '10':
-       break;
-     case '11':
-       break;
-     default:
-       break;
-   }
- }
- else{
-   //转串口通信超时处理
-   Serial.print("串口通信超时");
- }
-}
+//
+//void Classfy_block(void){
+// // 可能需要做一些检查
+// int time1;
+// int good;    // 物品代号
+// int Flag_Recognize = false;
+// time1 = millis();
+// Serial.println("C");        // 给nnpred程序发送开始识别指令C
+// while(1){  // 等待nnpred计算完成返回计算结果
+//   if (Serial.available()) {
+//     good = Serial.read();
+//     Flag_Recognize = true;
+//     break;
+//   }
+//   if (millis() - time1 >= 10000) {    // 10秒超时
+//     break;
+//   }
+// }
+//
+// if (Flag_Recognize) {
+//   switch (good){
+//     case '0':
+//       break;
+//     case '1':
+//       break;
+//     case '2':
+//       break;
+//     case '3':
+//       break;
+//     case '4':
+//       break;
+//     case '5':
+//       break;
+//     case '6':
+//       break;
+//     case '7':
+//       break;
+//     case '8':
+//       break;
+//     case '9':
+//       break;
+//     case '10':
+//       break;
+//     case '11':
+//       break;
+//     default:
+//       break;
+//   }
+// }
+// else{
+//   //转串口通信超时处理
+//   Serial.print("串口通信超时");
+// }
+//}
