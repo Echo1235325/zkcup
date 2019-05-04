@@ -1,4 +1,5 @@
 #include <FlexiTimer2.h>
+#include <Servo.h> //舵机操作
 
 typedef struct point{
   int x;
@@ -92,6 +93,22 @@ int count_Ti = 5;
 Quene Q;
 Point Target_Point, tem_Point;      // 目标点和临时点
 Point Next_Point, Now_Point;
+
+
+// 舵机
+Servo STE_turn; //云台舵机
+Servo STE_cat;  //爪子舵机
+int Flag_STEturn = 0;
+int pos = 0;
+int angle = 0;
+
+// 步进电机
+const int PLS = 5;
+const int DIR = 6;
+const int STEP_ENA = 23;
+int Step_val = 0;
+int Step_Flag = 0;
+
 
 
 // 识别部分标志位
@@ -332,6 +349,16 @@ void setup() {
     pinMode(ENCODER_R_B, INPUT); 
     pinMode(TrigPin,OUTPUT);
     pinMode(EchoPin,INPUT);
+
+    // Stepper
+    pinMode(PLS,OUTPUT);
+    pinMode(DIR,OUTPUT);
+    pinMode(STEP_ENA,OUTPUT);
+
+    // Servo
+    STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
+    STE_cat.attach(3);
+    
     //初始化
     digitalWrite(IN1, LOW);          //TB6612控制引脚拉低
     digitalWrite(IN2, LOW);          //TB6612控制引脚拉低
@@ -420,6 +447,7 @@ void Movement_block(void) {
 
 
 void Servo_Stepper_block(void){
+   Control_STE();
 }
 
 

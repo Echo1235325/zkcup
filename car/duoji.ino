@@ -1,14 +1,3 @@
-#include <Servo.h> //舵机操作
-
-Servo STE_turn; //云台舵机
-Servo STE_cat;  //爪子舵机
-int Flag_STEturn = 0;
-int pos = 0;
-int collide_1 = 4; //碰撞开关
-int collide_2 = 2; 
-int angle = 0;
-
-
 /****************************************************
  * 函数功能：使舵机旋转
  * 参数：angle旋转角度; STE舵机代号
@@ -66,34 +55,4 @@ void angle_ini(){
   Turn_STE(-180,STE_cat);
   delay(200);
   STE_turn.write(150);  
-}
-/**************************************************************************
-函数功能：舵机停止  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Stop(){
-    Flag_STEturn = 0;
-    angle = 0;
-}
-
-void setup() {
-  // put your setup code here, to run once:
-  STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
-  STE_cat.attach(3);
-  pinMode(collide_1,INPUT); 
-  attachInterrupt(0,Stop,LOW); //外部中断，停止
-  Serial.begin(9600);
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-  if(Flag_STEturn == 0)
-    angle_ini();
-  if(digitalRead(collide_1) == LOW){
-    Flag_STEturn = 1;
-    Catch();
-    Serial.print("1");
-    Control_STE();
-  }
 }
