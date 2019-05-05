@@ -43,7 +43,7 @@ bool Map[12][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
                     {0,1,1,1,0,0,0,0,1,1,1,0},
                     {0,1,1,1,0,0,0,0,1,1,1,0},
                     {0,1,1,1,0,0,0,0,1,1,1,0},
-                    {0,1,1,1,1,1,1,1,1,1,1,0},
+                    {1,1,1,1,1,1,1,1,1,1,1,0},
                     {0,1,1,1,1,1,1,1,1,1,1,0},
                     {0,1,1,1,1,1,1,1,1,1,1,0},
                     {0,0,0,0,0,0,0,0,0,0,0,0}};
@@ -54,7 +54,7 @@ static bool IsFullC[2][6];
 static bool IsFullD[2][6];
 
 
-// 中央购物车是否为空
+// 中央购物车是否已经抓完
 static bool IsEmptyCarA[3];
 static bool IsEmptyCarB[3];
 static bool IsEmptyCarC[3];
@@ -161,6 +161,116 @@ void Stop_PID(void){
   FlexiTimer2::stop();
 }
 
+
+
+
+
+ /**************************************************************************
+函数功能：读取红外传感当前电平  作者：Ding
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Read_RedValue(){
+    Value_Red_ForWard[0] = digitalRead(Red_Forward_0);
+    Value_Red_ForWard[1] = digitalRead(Red_Forward_1);
+    Value_Red_ForWard[2] = digitalRead(Red_Forward_2);
+    Value_Red_ForWard[3] = digitalRead(Red_Forward_3);
+    Value_Red_Center[0] = digitalRead(Red_Center_0);
+    Value_Red_Center[1] = digitalRead(Red_Center_1);
+    Value_Red_Center[2] = digitalRead(Red_Center_2);
+    Value_Red_Center[3] = digitalRead(Red_Center_3);
+}
+
+
+/**************************************************************************
+函数功能：车轮电机停止  作者：Ding
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Stop1(){
+    Receive_Data = 0;
+    Flag_Begin = 0;
+    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
+    digitalWrite(PWMB, LOW);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
+}
+
+void Stop(){
+    Stop_PID();
+    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
+    digitalWrite(PWMB, LOW);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
+    // delay(300);
+    // Start_PID();
+}
+
+
+
+/**************************************************************************
+函数功能：限制PWM大小 
+入口参数：无
+返回  值：无
+**************************************************************************/
+void Limit_Pwm(void)
+{
+  int Amplitude = 250;  //===PWM满幅是255 限制在250
+  if (V_NOW_R < -Amplitude) V_NOW_R = -Amplitude;
+  if (V_NOW_R > Amplitude)  V_NOW_R = Amplitude;
+  if (V_NOW_L < -Amplitude) V_NOW_L = -Amplitude;
+  if (V_NOW_L > Amplitude)  V_NOW_L = Amplitude;
+}
+
+/**************************************************************************
+函数功能：pid速度计算  
+入口参数：无
+返回  值：无
+**************************************************************************/
+double pid1(int Pulse, float Kp, float Ki, float Kd){
+    int error;
+    static float v;
+    error = setpoint_L - Pulse;
+    error_int1 += error;
+    derror1 = error - error_last1;
+    v = Kp * error + Ki * error_int1 + Kd * derror1;
+    error_last1 = error;
+// //    Serial.print("error = ");
+//     Serial.print(' ');
+//     Serial.print(error);
+// //    Serial.print("    error_int1 = ");
+//     Serial.print(' ');
+//     Serial.print(error_int1);
+// //    Serial.print("    derror1 = ");
+//     Serial.print(' ');
+//     Serial.print(derror1);
+    return v;
+}
+
+double pid2(int Pulse, float Kp, float Ki, float Kd){
+    int error;
+    static float v;
+    error = setpoint_R - Pulse;
+    error_int2 += error;
+    derror2 = error - error_last2;
+    v = Kp * error + Ki * error_int2 + Kd * derror2;
+    error_last2 = error;
+// //    Serial.print("error = ");
+//     Serial.print(' ');
+//     Serial.print(error);
+// //    Serial.print("    error_int2 = ");
+//     Serial.print(' ');
+//     Serial.print(error_int2);
+// //    Serial.print("    derror2 = ");
+//     Serial.print(' ');
+//     Serial.println(derror2);
+    return v;
+}
+
 void calculate_pid(){
     double Kp = 1.65, Ki = 1/count_Ti*Kp, Kd = 5*Kp;
     if (Flag_Begin) {
@@ -229,22 +339,22 @@ void Control(int Receive_Data){
         setpoint_R = Value_Setpoint;    // 改了这里 想看一下左右轮的一致性, 但会影响超调量
     }
     if(Flag_Backward) {
-        V_NOW_L = -150;
-        V_NOW_R = -150;
+        V_NOW_L = -160;
+        V_NOW_R = -160;
         Limit_Pwm();
         Set_Pwm();
     }
     if(Flag_Left) {
-        V_NOW_L = -165;
-        V_NOW_R = 165;
+        V_NOW_L = -180;
+        V_NOW_R = 180;
         Limit_Pwm();
         Set_Pwm();
 //        setpoint_L = -Value_Setpoint;
 //        setpoint_R = Value_Setpoint;
     }
     if(Flag_Right) {
-        V_NOW_L = 165;
-        V_NOW_R = -165;
+        V_NOW_L = 180;
+        V_NOW_R = -180;
         Limit_Pwm();
         Set_Pwm();
 //        setpoint_L = Value_Setpoint;
@@ -358,61 +468,6 @@ void Rectify(){
     }
  }
  
-
-void setup() {
-    // put your setup code here, to run once:
-    pinMode(IN1, OUTPUT);        //TB6612控制引脚，控制电机1的方向，01为正转，10为反转
-    pinMode(IN2, OUTPUT);          //TB6612控制引脚，
-    pinMode(IN3, OUTPUT);          //TB6612控制引脚，控制电机2的方向，01为正转，10为反转
-    pinMode(IN4, OUTPUT); 
-    pinMode(collide_1,INPUT); 
-    pinMode(collide_2,INPUT); 
-    pinMode(Red_Forward_0,INPUT);
-    pinMode(Red_Forward_1,INPUT);
-    pinMode(Red_Forward_2,INPUT);
-    pinMode(Red_Forward_3,INPUT);
-    pinMode(Red_Center_0,INPUT);
-    pinMode(Red_Center_1,INPUT);
-    pinMode(Red_Center_2,INPUT);
-    pinMode(Red_Center_3,INPUT);
-    pinMode(ENCODER_L_A, INPUT);
-    pinMode(ENCODER_R_A, INPUT); 
-    pinMode(ENCODER_L_B, INPUT);
-    pinMode(ENCODER_R_B, INPUT); 
-    STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
-    STE_cat.attach(3);
-    pinMode(PLS,OUTPUT);
-    pinMode(DIR,OUTPUT);
-    pinMode(STEP_ENA,OUTPUT);
-
-    //初始化
-    digitalWrite(IN1, LOW);          //TB6612控制引脚拉低
-    digitalWrite(IN2, LOW);          //TB6612控制引脚拉低
-    digitalWrite(IN3, LOW);          //TB6612控制引脚拉低
-    digitalWrite(IN4, LOW);          //TB6612控制引脚拉低
-    analogWrite(PWMA, LOW);          //TB6612控制引脚拉低
-    analogWrite(PWMB, LOW);          //TB6612控制引脚拉低
-
-    pinMode(H_echoPin, INPUT);  // 设置echoPin 为输入模式。
-    pinMode(H_trigPin, OUTPUT); // 设置trigPin 为输出模式。
-    pinMode(L_echoPin, INPUT);  // 设置echoPin 为输入模式。
-    pinMode(L_trigPin, OUTPUT); // 设置trigPin 为输出模式。
-
-
-    Serial.begin(9600);
-    attachInterrupt(0,Stop1,LOW); //外部中断，停止
-    attachInterrupt(3,ReadEncoder_L, CHANGE);
-    attachInterrupt(2,ReadEncoder_R, CHANGE);
-    FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
-
-    // move_state = 0;
-    // M = 0;
-    // Now_Point.x = 8;
-    // Now_Point.y = 0;
-    // Path_Planning(8, 1, 8, 5);
-    // Next_Point = Dequene();
-}
-
 void Exam_arrval_Point(void){
     if( Value_Red_Center[1] && Value_Red_Center[3]){
         Flag_Count = 0;
@@ -448,7 +503,7 @@ void Exam_arrval_Point(void){
 
 void Movement_block(int x1, int y1, int x2, int y2) {       // 从A到B的巡线模块
   Path_Planning(x1, y1, x2, y2);
-  Now_Point = {x1, y1};
+  Now_Point = Dequene();
   Next_Point = Dequene();
   Start_PID();
   while(!QueneIsEmpty()){
@@ -480,11 +535,6 @@ void Movement_block(int x1, int y1, int x2, int y2) {       // 从A到B的巡线
 }
 
 
-
-
-
-void Servo_Stepper_block(void){
-}
 
 
 void Catch_Move(char BuyCar){
@@ -585,130 +635,131 @@ void Catch_Move(char BuyCar){
 
 
 
+
+/****************************************************
+ * 函数功能：超声波检测
+ * 参数：对应超声波 TR口，EC口，判断距离distance
+ * 返回值: 小于distance时返回true
+ ****************************************************/
+bool Exam_items(int US_tr_num,int US_ec_num,int distance){
+      unsigned long time_echo_us = 0;
+      unsigned long dist_mm = 0;
+      unsigned long avg_dist = 0;
+      unsigned long last_dist = 0;
+      int count = 0;
+      while(count <20){
+        digitalWrite(US_tr_num, LOW);   // 先拉低，以确保脉冲识别正确
+        delayMicroseconds(2);         // 等待2us
+        digitalWrite(US_tr_num, HIGH);  // 开始通过Trig/Pin 发送脉冲
+        delayMicroseconds(12);        // 设置脉冲宽度为12us (>10us)
+        digitalWrite(US_tr_num, LOW);   // 结束脉冲
+        time_echo_us = pulseIn(US_ec_num, HIGH);          // 计算US-100 返回的脉冲宽度
+        if((time_echo_us < 60000) && (time_echo_us > 1))// 脉冲有效范围(1, 60000).
+        {
+          // dist_mm = (time_echo_us * 0.34mm/us) / 2 (mm)
+          dist_mm = time_echo_us*5/29;        // 通过脉冲宽度计算距离.
+          count++;
+          avg_dist += dist_mm;  
+        }
+     }
+        avg_dist = avg_dist/20; 
+        Serial.println(avg_dist);
+        if(avg_dist < distance)   return true;
+        else return false;
+}
+
+
 bool Scan_State[3];     // 三个超声波的检测状态
 void Scan_Echo(void){
   Scan_State[0] = Exam_items(H_trigPin, H_echoPin, 250);
   Scan_State[1] = Exam_items(L_trigPin, L_echoPin, 250);
-  Scan_State[2] = Exam_items(Left_trigPin, Left_echoPin, 100);
+//  Scan_State[2] = Exam_items(Left_trigPin, Left_echoPin, 100);
 }
 
 bool Init_Scan_Shelf_Flag = 0;
-void Init_Scan_Shelf(void){
+// void Init_Scan_Shelf(void){
+//  // 扫 A 货架, 高的超声波为0, 低的超声波为1
+//  Movement_block(8, 1, 10, 1);
+//  Turn_Left();
+//  Stop();
+//  delay(50);
+//  Scan_Echo();
+//  IsFullA[0][0] = Scan_State[0];
+//  IsFullA[1][0] = Scan_State[1];
+ 
+//  for(int i = 1; i <= 5; i++){
+//    Movement_block(10, i, 10, i+1);
+//    delay(50); 
+//    Scan_Echo();
+//    IsFullA[0][i] = Scan_State[0];
+//    IsFullA[1][i] = Scan_State[1];
+//    // Scan_Shelf
+//  }
+
+//  // 扫 B 货架
+//  Movement_block(10, 6, 10, 10);
+//  Turn_Left();
+//  Stop();
+//  delay(50);
+//  Scan_Echo();
+//  IsFullB[0][0] = Scan_State[0];
+//  IsFullB[1][0] = Scan_State[1];
+
+//  for(int i = 10; i >=6 ; i--){
+//    Movement_block(i, 10, i-1, 10);
+//    delay(50); 
+//    Scan_Echo();
+//    IsFullB[0][11 - i] = Scan_State[0];
+//    IsFullB[1][11 - i] = Scan_State[1];
+//    // Scan_Shelf
+//  }
+
+//  // 扫 C 货架
+//  Movement_block(5, 10, 1, 10);
+//  Turn_Left();
+//  Stop();
+//  delay(50);
+//  Scan_Echo();
+//  IsFullC[0][0] = Scan_State[0];
+//  IsFullC[1][0] = Scan_State[1];
+//  for(int i = 10; i >= 6; i--){
+//    Movement_block(1, i, 1, i - 1);
+//    delay(50); 
+//    Scan_Echo();
+//    IsFullC[0][11 - i] = Scan_State[0];
+//    IsFullC[1][11 - i] = Scan_State[1];
+//    // Scan_Shelf
+//  }
 
 
-  // 扫 A 货架, 高的超声波为0, 低的超声波为1
-  Movement_block(8, 1, 10, 1);
-  Turn_Left();
-  Stop(50);
-  Scan_Echo();
-  IsFullA[0][0] = Scan_State[0];
-  IsFullA[1][0] = Scan_State[1];
-  
-  for(int i = 1; i <= 5; i++){
-    Movement_block(10, i, 10, i+1);
-    delay(50); 
-    Scan_Echo();
-    IsFullA[0][i] = Scan_State[0];
-    IsFullA[1][i] = Scan_State[1];
-    // Scan_Shelf
-  }
-
-  // 扫 B 货架
-  Movement_block(10, 6, 10, 10);
-  Turn_Left();
-  Stop(50);
-  Scan_Echo();
-  IsFullB[0][0] = Scan_State[0];
-  IsFullB[1][0] = Scan_State[1];
-
-  for(int i = 10; i >=6 ; i--){
-    Movement_block(i, 10, i-1, 10);
-    delay(50); 
-    Scan_Echo();
-    IsFullB[0][11 - i] = Scan_State[0];
-    IsFullB[1][11 - i] = Scan_State[1];
-    // Scan_Shelf
-  }
-
-  // 扫 C 货架
-  Movement_block(5, 10, 1, 10);
-  Turn_Left();
-  Stop(50);
-  Scan_Echo();
-  IsFullC[0][0] = Scan_State[0];
-  IsFullC[1][0] = Scan_State[1];
-  for(int i = 10; i >= 6; i--){
-    Movement_block(1, i, 1, i - 1);
-    delay(50); 
-    Scan_Echo();
-    IsFullC[0][11 - i] = Scan_State[0];
-    IsFullC[1][11 - i] = Scan_State[1];
-    // Scan_Shelf
-  }
+//  Movement_block(1, 5, 1, 1);
+//  Turn_Left();
+//  Stop();
+//  delay(50);
+//  Scan_Echo();
+//  IsFullD[0][0] = Scan_State[0];
+//  IsFullD[1][0] = Scan_State[1];
+//  for(int i = 1; i <= 5; i++){
+//    Movement_block(1, i, 1, i + 1);
+//    delay(50); 
+//    Scan_Echo();
+//    IsFullD[0][i] = Scan_State[0];
+//    IsFullD[1][i] = Scan_State[1];
+//  }
 
 
-  Movement_block(1, 5, 1, 1);
-  Turn_Left();
-  Stop();
-  delay(50);
-  Scan_Echo();
-  IsFullD[0][0] = Scan_State[0];
-  IsFullD[1][0] = Scan_State[1];
-  for(int i = 1; i <= 5; i++){
-    Movement_block(1, i, 1, i + 1);
-    delay(50); 
-    Scan_Echo();
-    IsFullD[0][i] = Scan_State[0];
-    IsFullD[1][i] = Scan_State[1];
-  }
+//  Init_Scan_Shelf_Flag = 1;   // 初始循环结束标志位
+//  Movement_block(1, 6, 5, 3);   // 直接到D区拿货
 
-
-  Init_Scan_Shelf_Flag = 1;   // 初始循环结束标志位
-  Movement_block(1, 6, 5, 3);   // 直接到D区拿货
-
-  while(Count_Get_Car_A + Count_Get_Car_B + Count_Get_Car_C + Count_Get_Car_D != 12){
-    // 没有拿够12件货物之前一直做这个循环
-    // 抓货程序
-    Catch_Move();
-    // 放到货架中
-    Move_To_Shelf();
-    // 返回离货架最近的取货点
-  }
-}
-
-void loop(){
-    if(digitalRead(collide_1) == LOW) {
-        Flag_Begin = 1;
-    }
-    if(Flag_Begin == true && move_state == 0){
-        M = 1;
-        move_state = 1;
-        Start_PID();
-        Control(move_state);
-    }
-    if (Flag_Begin == 1) {
-      switch (M){
-        case 1:
-          break;
-        case 2:
-          Servo_Stepper_block();
-          break;
-        case 3:
-//          Classfy_block();
-          Stop1();
-          break;
-        default:
-          break;          
-      }
-      Serial.print("move_state = ");
-      Serial.print(move_state);
-      Serial.print("    M = ");
-      Serial.println(M);
-  }
-}
-
-
-
+//  while(Count_Get_Car_A + Count_Get_Car_B + Count_Get_Car_C + Count_Get_Car_D != 12){
+//    // 没有拿够12件货物之前一直做这个循环
+//    // 抓货程序
+//    Catch_Move();
+//    // 放到货架中
+//    Move_To_Shelf();
+//    // 返回离货架最近的取货点
+//  }
+// }
 
 
 /* ---------------------------------------------------------------------- */
@@ -1037,162 +1088,117 @@ void ReadEncoder_R(void){
 }
 
 
- /**************************************************************************
-函数功能：读取红外传感当前电平  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Read_RedValue(){
-    Value_Red_ForWard[0] = digitalRead(Red_Forward_0);
-    Value_Red_ForWard[1] = digitalRead(Red_Forward_1);
-    Value_Red_ForWard[2] = digitalRead(Red_Forward_2);
-    Value_Red_ForWard[3] = digitalRead(Red_Forward_3);
-    Value_Red_Center[0] = digitalRead(Red_Center_0);
-    Value_Red_Center[1] = digitalRead(Red_Center_1);
-    Value_Red_Center[2] = digitalRead(Red_Center_2);
-    Value_Red_Center[3] = digitalRead(Red_Center_3);
+// void Classfy_block(void){
+// // 可能需要做一些检查
+// int time1;
+// int good;    // 物品代号
+// int Flag_Recognize = false;
+// time1 = millis();
+// Serial.println("C");        // 给nnpred程序发送开始识别指令C
+// while(1){  // 等待nnpred计算完成返回计算结果
+//   if (Serial.available()) {
+//     good = Serial.read();
+//     Flag_Recognize = true;
+//     break;
+//   }
+//   if (millis() - time1 >= 10000) {    // 10秒超时
+//     break;
+//   }
+// }
+
+// if (Flag_Recognize) {
+//   switch (good){
+//     case 'a':
+//       break;
+//     case 'b':
+//       break;
+//     case 'c':
+//       break;
+//     case 'd':
+//       break;
+//     case 'f':
+//       break;
+//     case 'g':
+//       break;
+//     case 'h':
+//       break;
+//     case 'i':
+//       break;
+//     case 'j':
+//       break;
+//     case 'k':
+//       break;
+//     case 'l':
+//       break;
+//     case 'm':
+//       break;
+//     default:
+//       break;
+//   }
+// }
+// else{
+//   //转串口通信超时处理
+//   Serial.print("串口通信超时");
+// }
+// }
+
+
+
+void setup() {
+    // put your setup code here, to run once:
+    pinMode(IN1, OUTPUT);        //TB6612控制引脚，控制电机1的方向，01为正转，10为反转
+    pinMode(IN2, OUTPUT);          //TB6612控制引脚，
+    pinMode(IN3, OUTPUT);          //TB6612控制引脚，控制电机2的方向，01为正转，10为反转
+    pinMode(IN4, OUTPUT); 
+    pinMode(collide_1,INPUT); 
+    pinMode(collide_2,INPUT); 
+    pinMode(Red_Forward_0,INPUT);
+    pinMode(Red_Forward_1,INPUT);
+    pinMode(Red_Forward_2,INPUT);
+    pinMode(Red_Forward_3,INPUT);
+    pinMode(Red_Center_0,INPUT);
+    pinMode(Red_Center_1,INPUT);
+    pinMode(Red_Center_2,INPUT);
+    pinMode(Red_Center_3,INPUT);
+    pinMode(ENCODER_L_A, INPUT);
+    pinMode(ENCODER_R_A, INPUT); 
+    pinMode(ENCODER_L_B, INPUT);
+    pinMode(ENCODER_R_B, INPUT); 
+    STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
+    STE_cat.attach(3);
+    pinMode(PLS,OUTPUT);
+    pinMode(DIR,OUTPUT);
+    pinMode(STEP_ENA,OUTPUT);
+
+    //初始化
+    digitalWrite(IN1, LOW);          //TB6612控制引脚拉低
+    digitalWrite(IN2, LOW);          //TB6612控制引脚拉低
+    digitalWrite(IN3, LOW);          //TB6612控制引脚拉低
+    digitalWrite(IN4, LOW);          //TB6612控制引脚拉低
+    analogWrite(PWMA, LOW);          //TB6612控制引脚拉低
+    analogWrite(PWMB, LOW);          //TB6612控制引脚拉低
+
+    pinMode(H_echoPin, INPUT);  // 设置echoPin 为输入模式。
+    pinMode(H_trigPin, OUTPUT); // 设置trigPin 为输出模式。
+    pinMode(L_echoPin, INPUT);  // 设置echoPin 为输入模式。
+    pinMode(L_trigPin, OUTPUT); // 设置trigPin 为输出模式。
+
+
+    Serial.begin(9600);
+    attachInterrupt(0,Stop1,LOW); //外部中断，停止
+    attachInterrupt(3,ReadEncoder_L, CHANGE);
+    attachInterrupt(2,ReadEncoder_R, CHANGE);
+    FlexiTimer2::set(10, calculate_pid);   // 定时中断计算pid
+    angle_ini();
 }
 
 
-/**************************************************************************
-函数功能：车轮电机停止  作者：Ding
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Stop1(){
-    Receive_Data = 0;
-    Flag_Begin = 0;
-    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
-    digitalWrite(PWMB, LOW);
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, LOW);
-}
-
-void Stop(){
-    Stop_PID();
-    digitalWrite(PWMA, LOW);          //TB6612控制引脚拉低
-    digitalWrite(PWMB, LOW);
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, LOW);
-    // delay(300);
-    // Start_PID();
-}
-
-
-/**************************************************************************
-函数功能：限制PWM大小 
-入口参数：无
-返回  值：无
-**************************************************************************/
-void Limit_Pwm(void)
-{
-  int Amplitude = 250;  //===PWM满幅是255 限制在250
-  if (V_NOW_R < -Amplitude) V_NOW_R = -Amplitude;
-  if (V_NOW_R > Amplitude)  V_NOW_R = Amplitude;
-  if (V_NOW_L < -Amplitude) V_NOW_L = -Amplitude;
-  if (V_NOW_L > Amplitude)  V_NOW_L = Amplitude;
-}
-
-/**************************************************************************
-函数功能：pid速度计算  
-入口参数：无
-返回  值：无
-**************************************************************************/
-double pid1(int Pulse, float Kp, float Ki, float Kd){
-    int error;
-    static float v;
-    error = setpoint_L - Pulse;
-    error_int1 += error;
-    derror1 = error - error_last1;
-    v = Kp * error + Ki * error_int1 + Kd * derror1;
-    error_last1 = error;
-// //    Serial.print("error = ");
-//     Serial.print(' ');
-//     Serial.print(error);
-// //    Serial.print("    error_int1 = ");
-//     Serial.print(' ');
-//     Serial.print(error_int1);
-// //    Serial.print("    derror1 = ");
-//     Serial.print(' ');
-//     Serial.print(derror1);
-    return v;
-}
-
-double pid2(int Pulse, float Kp, float Ki, float Kd){
-    int error;
-    static float v;
-    error = setpoint_R - Pulse;
-    error_int2 += error;
-    derror2 = error - error_last2;
-    v = Kp * error + Ki * error_int2 + Kd * derror2;
-    error_last2 = error;
-// //    Serial.print("error = ");
-//     Serial.print(' ');
-//     Serial.print(error);
-// //    Serial.print("    error_int2 = ");
-//     Serial.print(' ');
-//     Serial.print(error_int2);
-// //    Serial.print("    derror2 = ");
-//     Serial.print(' ');
-//     Serial.println(derror2);
-    return v;
-}
-
-
-void Classfy_block(void){
-// 可能需要做一些检查
-int time1;
-int good;    // 物品代号
-int Flag_Recognize = false;
-time1 = millis();
-Serial.println("C");        // 给nnpred程序发送开始识别指令C
-while(1){  // 等待nnpred计算完成返回计算结果
-  if (Serial.available()) {
-    good = Serial.read();
-    Flag_Recognize = true;
-    break;
-  }
-  if (millis() - time1 >= 10000) {    // 10秒超时
-    break;
-  }
-}
-
-if (Flag_Recognize) {
-  switch (good){
-    case 'a':
-      break;
-    case 'b':
-      break;
-    case 'c':
-      break;
-    case 'd':
-      break;
-    case 'f':
-      break;
-    case 'g':
-      break;
-    case 'h':
-      break;
-    case 'i':
-      break;
-    case 'j':
-      break;
-    case 'k':
-      break;
-    case 'l':
-      break;
-    case 'm':
-      break;
-    default:
-      break;
-  }
-}
-else{
-  //转串口通信超时处理
-  Serial.print("串口通信超时");
-}
-}
+void loop(){
+    if(digitalRead(collide_1) == LOW) {
+        Flag_Begin = 1;
+    }
+    if(Flag_Begin == true && move_state == 0){
+        move_state = 1;
+        Movement_block(8, 0, 10, 4);  
+    }
+ }
