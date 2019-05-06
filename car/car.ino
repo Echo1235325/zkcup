@@ -55,17 +55,10 @@ static bool IsFullD[2][6];
 
 
 // 中央购物车是否已经抓完
-static bool IsEmptyCarA[3];
-static bool IsEmptyCarB[3];
-static bool IsEmptyCarC[3];
-static bool IsEmptyCarD[3];
-
-// 每抓一个购物车上的货物底下的数值要+1
-int Count_Get_Car_A = 0;
-int Count_Get_Car_B = 0;
-int Count_Get_Car_C = 0;
-int Count_Get_Car_D = 0;
-
+static bool Haved_Been_CatchA[3];
+static bool Haved_Been_CatchB[3];
+static bool Haved_Been_CatchC[3];
+static bool Haved_Been_CatchD[3];
 
 
 /* 引脚定义 */
@@ -133,8 +126,11 @@ Point Target_Point, tem_Point;      // 目标点和临时点
 Point Next_Point, Now_Point;
 
 
-// 识别部分标志位
-bool Flag_Recognize_C = 0;
+// 识别部分
+
+
+// 找空货架的时候返回的空货架列编号
+int Empty_Column;      
 
 void Enquene( Point P ){
     Q.Road[Q.front++] = P;
@@ -627,12 +623,188 @@ void Catch_Move(char BuyCar){
     }
     Stop();  
     ///// 拍摄 + 抓
+    Classfy_block();
+    // 如果已经要放入的货架未满
+    Catch_items();
     Control(2);     // 倒车
     delay(1500);
     Stop();         // 完成
+    // 如果现在待抓取的物品 要放入的货架已经满了 转别的操作处理
+}
+
+void Catch_items(char BuyCar){
+  int Left = 0;
+  int Center = 1;
+  int Right = 2;
+  int *p;
+  switch (BuyCar)
+  {
+    case 'A':
+      *p = Haved_Been_CatchA;
+      break;
+    case 'B':
+      *p = Haved_Been_CatchB;
+      break;
+    case 'C':
+      *p = Haved_Been_CatchC;
+      break;
+    case 'D':
+      *p = Haved_Been_CatchD;
+      break;
+  }
+  if ( p[Center] == false ) {
+    // 抓中央物体的程序
+    p[Center] = true;
+  }
+  else if ( p[Left] == false ) {
+    // 抓左边物体的程序
+    p[Left] = true;
+  }
+  else if ( p[Right] == false ) {
+    // 抓右边物体的程序
+    p[Right] = true;
+  }
 }
 
 
+void Classfy_block(void){
+// 可能需要做一些检查
+int time1;
+int good;    // 物品代号
+int Flag_Recognize = false;
+time1 = millis();
+Serial.println("C");        // 给nnpred程序发送开始识别指令C
+while(1){  // 等待nnpred计算完成返回计算结果
+  if (Serial.available()) {
+    good = Serial.read();
+    Flag_Recognize = true;
+    break;
+  }
+  if (millis() - time1 >= 10000) {    // 10秒超时
+    break;
+  }
+}
+
+if (Flag_Recognize) {
+  switch (good){
+    case 'a':
+      break;
+    case 'b':
+      break;
+    case 'c':
+      break;
+    case 'd':
+      break;
+    case 'f':
+      break;
+    case 'g':
+      break;
+    case 'h':
+      break;
+    case 'i':
+      break;
+    case 'j':
+      break;
+    case 'k':
+      break;
+    case 'l':
+      break;
+    case 'm':
+      break;
+    default:
+      break;
+  }
+  Serial.print("已识别货物为:");
+  Serial.println(good);
+
+  Empty_Column = Find_Empty_Shelf(Shelf);
+  if (Empty_Column == -1) {
+    // 转对应货架已经满的处理
+    return;
+  }
+  
+  switch (Shelf)
+  {
+    case 'A':
+      Target_Point = {10, Empty_Column + 1};
+      break;
+    case 'B':
+      Target_Point = {10 - Empty_Column, 10};
+      break;
+    case 'C':
+      Target_Point = {1, 10 - Empty_Column};
+      break;
+    case 'D':
+      Target_Point = {Empty_Column + 1 , 1};
+      break;
+  }
+
+  Serial.print("开始从");
+  Serial.print("Now_Point = (");
+  Serial.print(Now_Point.x);
+  Serial.print(", ");
+  Serial.print(Now_Point.y);
+  Serial.print(")  到 ");
+  Serial.print("Target_Point = (");
+  Serial.print(Target_Point.x);
+  Serial.print(", ");
+  Serial.print(Target_Point.y);
+  Serial.println(")");
+}
+else{
+  //转串口通信超时处理
+  Serial.println("串口通信超时");
+  Stop1();
+  }
+}
+
+
+// 用来找某一个对应货架中空的货架的列编号，具体的是上货架是空还是下货架是空可以直接由列编号查询
+int Find_Empty_Shelf( char Shelf ){
+  int i;
+  switch (Shelf)
+  {
+    case 'A':
+      for(i = 0; i <= 5; i++)
+      {
+        if(IsFullA[i][0] == false || IsFullA[i][1] == false){
+          break;
+        }
+      }
+      break;
+    case 'B':
+      for(i = 0; i <= 5; i++)
+      {
+        if(IsFullB[i][0] == false || IsFullB[i][1] == false){
+          break;
+        }
+      }
+      break;
+    case 'C':
+      for(i = 0; i <= 5; i++)
+      {
+        if(IsFullC[i][0] == false || IsFullC[i][1] == false){
+          break;
+        }
+      }
+      break;
+    case 'D':
+      for(i = 0; i <= 5; i++)
+      {
+        if(IsFullD[i][0] == false || IsFullD[i][1] == false){
+          break;
+        }
+      }
+      break;
+  }
+  if (i <= 5) {
+    return i;
+  }
+  // 货架没有空位置可放直接返回-1
+  else {
+    return -1;
+  }
+}
 
 
 
@@ -677,89 +849,96 @@ void Scan_Echo(void){
 }
 
 bool Init_Scan_Shelf_Flag = 0;
-// void Init_Scan_Shelf(void){
-//  // 扫 A 货架, 高的超声波为0, 低的超声波为1
-//  Movement_block(8, 1, 10, 1);
-//  Turn_Left();
-//  Stop();
-//  delay(50);
-//  Scan_Echo();
-//  IsFullA[0][0] = Scan_State[0];
-//  IsFullA[1][0] = Scan_State[1];
+void Init_Scan_Shelf(void){
+ // 扫 A 货架, 高的超声波为0, 低的超声波为1
+ Movement_block(8, 1, 10, 1);
+ Turn_Left();
+ Stop();
+ delay(50);
+ Scan_Echo();
+ IsFullA[0][0] = Scan_State[0];
+ IsFullA[1][0] = Scan_State[1];
  
-//  for(int i = 1; i <= 5; i++){
-//    Movement_block(10, i, 10, i+1);
-//    delay(50); 
-//    Scan_Echo();
-//    IsFullA[0][i] = Scan_State[0];
-//    IsFullA[1][i] = Scan_State[1];
-//    // Scan_Shelf
-//  }
+ for(int i = 1; i <= 5; i++){
+   Movement_block(10, i, 10, i+1);
+   delay(50); 
+   Scan_Echo();
+   IsFullA[0][i] = Scan_State[0];
+   IsFullA[1][i] = Scan_State[1];
+   // Scan_Shelf
+ }
 
-//  // 扫 B 货架
-//  Movement_block(10, 6, 10, 10);
-//  Turn_Left();
-//  Stop();
-//  delay(50);
-//  Scan_Echo();
-//  IsFullB[0][0] = Scan_State[0];
-//  IsFullB[1][0] = Scan_State[1];
+ // 扫 B 货架
+ Movement_block(10, 6, 10, 10);
+ Turn_Left();
+ Stop();
+ delay(50);
+ Scan_Echo();
+ IsFullB[0][0] = Scan_State[0];
+ IsFullB[1][0] = Scan_State[1];
 
-//  for(int i = 10; i >=6 ; i--){
-//    Movement_block(i, 10, i-1, 10);
-//    delay(50); 
-//    Scan_Echo();
-//    IsFullB[0][11 - i] = Scan_State[0];
-//    IsFullB[1][11 - i] = Scan_State[1];
-//    // Scan_Shelf
-//  }
+ for(int i = 10; i >=6 ; i--){
+   Movement_block(i, 10, i-1, 10);
+   delay(50); 
+   Scan_Echo();
+   IsFullB[0][11 - i] = Scan_State[0];
+   IsFullB[1][11 - i] = Scan_State[1];
+   // Scan_Shelf
+ }
 
-//  // 扫 C 货架
-//  Movement_block(5, 10, 1, 10);
-//  Turn_Left();
-//  Stop();
-//  delay(50);
-//  Scan_Echo();
-//  IsFullC[0][0] = Scan_State[0];
-//  IsFullC[1][0] = Scan_State[1];
-//  for(int i = 10; i >= 6; i--){
-//    Movement_block(1, i, 1, i - 1);
-//    delay(50); 
-//    Scan_Echo();
-//    IsFullC[0][11 - i] = Scan_State[0];
-//    IsFullC[1][11 - i] = Scan_State[1];
-//    // Scan_Shelf
-//  }
-
-
-//  Movement_block(1, 5, 1, 1);
-//  Turn_Left();
-//  Stop();
-//  delay(50);
-//  Scan_Echo();
-//  IsFullD[0][0] = Scan_State[0];
-//  IsFullD[1][0] = Scan_State[1];
-//  for(int i = 1; i <= 5; i++){
-//    Movement_block(1, i, 1, i + 1);
-//    delay(50); 
-//    Scan_Echo();
-//    IsFullD[0][i] = Scan_State[0];
-//    IsFullD[1][i] = Scan_State[1];
-//  }
+ // 扫 C 货架
+ Movement_block(5, 10, 1, 10);
+ Turn_Left();
+ Stop();
+ delay(50);
+ Scan_Echo();
+ IsFullC[0][0] = Scan_State[0];
+ IsFullC[1][0] = Scan_State[1];
+ for(int i = 10; i >= 6; i--){
+   Movement_block(1, i, 1, i - 1);
+   delay(50); 
+   Scan_Echo();
+   IsFullC[0][11 - i] = Scan_State[0];
+   IsFullC[1][11 - i] = Scan_State[1];
+   // Scan_Shelf
+ }
 
 
-//  Init_Scan_Shelf_Flag = 1;   // 初始循环结束标志位
-//  Movement_block(1, 6, 5, 3);   // 直接到D区拿货
+ Movement_block(1, 5, 1, 1);
+ Turn_Left();
+ Stop();
+ delay(50);
+ Scan_Echo();
+ IsFullD[0][0] = Scan_State[0];
+ IsFullD[1][0] = Scan_State[1];
+ for(int i = 1; i <= 5; i++){
+   Movement_block(1, i, 1, i + 1);
+   delay(50); 
+   Scan_Echo();
+   IsFullD[0][i] = Scan_State[0];
+   IsFullD[1][i] = Scan_State[1];
+ }
 
-//  while(Count_Get_Car_A + Count_Get_Car_B + Count_Get_Car_C + Count_Get_Car_D != 12){
-//    // 没有拿够12件货物之前一直做这个循环
-//    // 抓货程序
-//    Catch_Move();
-//    // 放到货架中
-//    Move_To_Shelf();
-//    // 返回离货架最近的取货点
-//  }
-// }
+
+ Init_Scan_Shelf_Flag = 1;   // 初始循环结束标志位
+ Movement_block(1, 6, 5, 3);   // 直接到D区拿货
+
+ while(Count_Get_Car_A + Count_Get_Car_B + Count_Get_Car_C + Count_Get_Car_D != 12){
+   // 没有拿够12件货物之前一直做这个循环
+   // 抓货程序
+   Catch_Move();
+   // 放到货架中
+   Put_Item_To_Shelf();
+   // 返回离货架最近的取货点
+ }
+}
+
+void Put_Item_To_Shelf(){
+  Movement_block(Now_Point.x, Now_Point.y, Target_Point.x, Target_Point.y);   // Target_Point 在识别函数中给出
+  Stop();
+  // 这里需要加入接近货架的程序
+  // 根据 Shelf 和 Empty_Column 决定是往高出放还是往低处放
+}
 
 
 /* ---------------------------------------------------------------------- */
@@ -1086,62 +1265,6 @@ void ReadEncoder_R(void){
     }
   }
 }
-
-
-// void Classfy_block(void){
-// // 可能需要做一些检查
-// int time1;
-// int good;    // 物品代号
-// int Flag_Recognize = false;
-// time1 = millis();
-// Serial.println("C");        // 给nnpred程序发送开始识别指令C
-// while(1){  // 等待nnpred计算完成返回计算结果
-//   if (Serial.available()) {
-//     good = Serial.read();
-//     Flag_Recognize = true;
-//     break;
-//   }
-//   if (millis() - time1 >= 10000) {    // 10秒超时
-//     break;
-//   }
-// }
-
-// if (Flag_Recognize) {
-//   switch (good){
-//     case 'a':
-//       break;
-//     case 'b':
-//       break;
-//     case 'c':
-//       break;
-//     case 'd':
-//       break;
-//     case 'f':
-//       break;
-//     case 'g':
-//       break;
-//     case 'h':
-//       break;
-//     case 'i':
-//       break;
-//     case 'j':
-//       break;
-//     case 'k':
-//       break;
-//     case 'l':
-//       break;
-//     case 'm':
-//       break;
-//     default:
-//       break;
-//   }
-// }
-// else{
-//   //转串口通信超时处理
-//   Serial.print("串口通信超时");
-// }
-// }
-
 
 
 void setup() {
