@@ -12,8 +12,8 @@ ser.open()
 
 ReciveData = ''
 WriteData = ''
-ExitFlag = '0xff'
-BeginJudge = '0xfe'
+ExitFlag = 'E'
+BeginJudge = 'B'
 Stop = False
 
 class_name = {0: "ADmilk", 1: "Deluxe", 2: "RedBull",
@@ -24,15 +24,15 @@ if ser.is_open == False:
 else:
     print("Serial Parameter:", ser)
     while Stop == False:
-        if ser.in_waiting:
-            ReciveData = ser.read(ser.in_waiting).decode("gbk")
-            print("Recive: ", ReciveData)
+        if ser.in_waiting != 0:
+            ReciveData = ser.read(1).decode("gbk")
+            print("Recive:", ReciveData)
             if ReciveData == ExitFlag:
                 Stop = True
             if ReciveData == BeginJudge:
                 result = pred.nnpred()
-                ser.write(str(result).encode("utf-8"))
-                time.sleep(0.5)
+                result = chr(result + 97)       # 数字0~11转成a~m
+                ser.write(str(result).encode("gbk"))
 
 print("-----"*20+"Run Complete"+"-----"*20)
 end = time.time()

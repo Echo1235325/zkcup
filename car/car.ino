@@ -87,7 +87,7 @@ const int Red_Center_3 = 31;
 
 
 // 超声波
-float cm;
+bool Scan_State[3];     // 三个超声波的检测状态
 
 //控制标志
 int Flag_Turn = 0;
@@ -125,9 +125,8 @@ Quene Q;
 Point Target_Point, tem_Point;      // 目标点和临时点
 Point Next_Point, Now_Point;
 
-
-// 识别部分
-
+// 物体识别得到的货架编号：A B C D
+char Shelf;
 
 // 找空货架的时候返回的空货架列编号
 int Empty_Column;      
@@ -622,51 +621,107 @@ void Catch_Move(char BuyCar){
       Rectify();
     }
     Stop();  
-    ///// 拍摄 + 抓
-    Classfy_block();
-    // 如果已经要放入的货架未满
-    Catch_items();
+
+    ///// 拍摄 + 抓货物 + 给出下一个目标点
+    Catch_items(BuyCar);
     Control(2);     // 倒车
     delay(1500);
     Stop();         // 完成
-    // 如果现在待抓取的物品 要放入的货架已经满了 转别的操作处理
+    Movement_block(Now_Point.x, Now_Point.y, Target_Point.x, Target_Point.y);
+    
 }
 
+
+/* ********************************************************************
+ * 抓取部分, 包括识别和并给出下一个目标点的坐标 Target_Point
+ * *******************************************************************/
 void Catch_items(char BuyCar){
   int Left = 0;
   int Center = 1;
   int Right = 2;
   int *p;
+  int t;
+  Point QuWuDian[4] = {{8, 5}, {6, 8}, {3, 6}, {5, 3}};
+  int QuWuDianBianHao;
   switch (BuyCar)
   {
     case 'A':
       *p = Haved_Been_CatchA;
+      QuWuDianBianHao = 0;
       break;
     case 'B':
       *p = Haved_Been_CatchB;
+      QuWuDianBianHao = 1;
       break;
     case 'C':
       *p = Haved_Been_CatchC;
+      QuWuDianBianHao = 2;
       break;
     case 'D':
       *p = Haved_Been_CatchD;
+      QuWuDianBianHao = 3;
       break;
   }
   if ( p[Center] == false ) {
-    // 抓中央物体的程序
-    p[Center] = true;
+    // 云台转到中央物体位置
+    t = Center;
   }
   else if ( p[Left] == false ) {
-    // 抓左边物体的程序
-    p[Left] = true;
+    // 转到左侧物体位置
+    t = Left;
   }
   else if ( p[Right] == false ) {
-    // 抓右边物体的程序
-    p[Right] = true;
+    // 转到右侧物体位置
+    t = Right;
   }
+  Classfy_block();       // 识别
+  p[t] = true;           // 标记这个物品已经被识别过了
+
+
+  if (Empty_Column == -1){
+    // 这个物品对应货架的已经满
+    // 找另一个购物车的货物去抓取
+    // 逻辑应该是看当前购物车是否还有可以抓取的货物，可以抓取的话则去识别并抓取，不然的话换一个购物车抓取。
+    QuWuDianBianHao = (QuWuDianBianHao + 1) % 4;
+    Target_Point = QuWuDian[QuWuDianBianHao]; 
+  }
+  else {
+    // 抓物体的函数
+    switch (Shelf){
+      case 'A':
+        Target_Point = {10, Empty_Column + 1};
+        break;
+      case 'B':
+        Target_Point = {10 - Empty_Column, 10};
+        break;
+      case 'C':
+        Target_Point = {1, 10 - Empty_Column};
+        break;
+      case 'D':
+        Target_Point = {Empty_Column + 1 , 1};
+        break;
+    }
+    Serial.print("开始从");
+    Serial.print("Now_Point = (");
+    Serial.print(Now_Point.x);
+    Serial.print(", ");
+    Serial.print(Now_Point.y);
+    Serial.print(")  到 ");
+    Serial.print("Target_Point = (");
+    Serial.print(Target_Point.x);
+    Serial.print(", ");
+    Serial.print(Target_Point.y);
+    Serial.println(")");
+  }
+  // 移动到对应货架部分未写
 }
 
 
+
+/* **********************************************************************
+ * 识别部分
+ * 返回值: 该物品对应的货架Shelf, 空货架的列编号Empty_Column
+ * *********************************************************************/
 void Classfy_block(void){
 // 可能需要做一些检查
 int time1;
@@ -685,31 +740,45 @@ while(1){  // 等待nnpred计算完成返回计算结果
   }
 }
 
+// class_names = ['ADCamilk', 'Blue cube', 'Deluxe', 'Green cube', 'HappyTiger', 'Red cube', 'RedBull', "Rubik's cube", 'SYY', 'Tennis', 'XHPJ', 'Yakult']
+//                     a           b          c           d             f             g           h           i           j        k        l        m
 if (Flag_Recognize) {
   switch (good){
     case 'a':
+      Shelf = 'B';
       break;
     case 'b':
+      Shelf = 'A';
       break;
     case 'c':
+      Shelf = 'D';
       break;
     case 'd':
+      Shelf = 'A';
       break;
     case 'f':
+      Shelf = 'C';
       break;
     case 'g':
+      Shelf = 'A';
       break;
     case 'h':
+      Shelf = 'C';
       break;
     case 'i':
+      Shelf = 'D';
       break;
     case 'j':
+      Shelf = 'B';
       break;
     case 'k':
+      Shelf = 'D';
       break;
     case 'l':
+      Shelf = 'C';
       break;
     case 'm':
+      Shelf = 'B';
       break;
     default:
       break;
@@ -719,37 +788,8 @@ if (Flag_Recognize) {
 
   Empty_Column = Find_Empty_Shelf(Shelf);
   if (Empty_Column == -1) {
-    // 转对应货架已经满的处理
     return;
   }
-  
-  switch (Shelf)
-  {
-    case 'A':
-      Target_Point = {10, Empty_Column + 1};
-      break;
-    case 'B':
-      Target_Point = {10 - Empty_Column, 10};
-      break;
-    case 'C':
-      Target_Point = {1, 10 - Empty_Column};
-      break;
-    case 'D':
-      Target_Point = {Empty_Column + 1 , 1};
-      break;
-  }
-
-  Serial.print("开始从");
-  Serial.print("Now_Point = (");
-  Serial.print(Now_Point.x);
-  Serial.print(", ");
-  Serial.print(Now_Point.y);
-  Serial.print(")  到 ");
-  Serial.print("Target_Point = (");
-  Serial.print(Target_Point.x);
-  Serial.print(", ");
-  Serial.print(Target_Point.y);
-  Serial.println(")");
 }
 else{
   //转串口通信超时处理
@@ -841,7 +881,7 @@ bool Exam_items(int US_tr_num,int US_ec_num,int distance){
 }
 
 
-bool Scan_State[3];     // 三个超声波的检测状态
+
 void Scan_Echo(void){
   Scan_State[0] = Exam_items(H_trigPin, H_echoPin, 250);
   Scan_State[1] = Exam_items(L_trigPin, L_echoPin, 250);

@@ -39,7 +39,7 @@ def nnpred():
     CaptureFailCount = 0
     class_name = {0: "ADmilk", 1: "Deluxe", 2: "RedBull",
                3: "Tennis", 4: "Yakult"}
-    model_path = 'C:\\Users\Ding\Desktop\zkcup\zkcup\Save model\loss=0.035.tar'
+    model_path = 'C:\\Users\Ding\Desktop\zkcup\zkcup\Save model\loss=0.148.tar'
 
     # 加载模型
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
