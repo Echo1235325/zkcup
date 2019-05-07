@@ -340,16 +340,16 @@ void Control(int Receive_Data){
         Set_Pwm();
     }
     if(Flag_Left) {
-        V_NOW_L = -165;
-        V_NOW_R = 165;
+        V_NOW_L = -150;
+        V_NOW_R = 150;
         Limit_Pwm();
         Set_Pwm();
 //        setpoint_L = -Value_Setpoint;
 //        setpoint_R = Value_Setpoint;
     }
     if(Flag_Right) {
-        V_NOW_L = 165;
-        V_NOW_R = -165;
+        V_NOW_L = 150;
+        V_NOW_R = -150;
         Limit_Pwm();
         Set_Pwm();
 //        setpoint_L = Value_Setpoint;
@@ -367,12 +367,13 @@ void Turn_Left(){
 //  Serial.println("左转！");
  Stop_PID();
  Control(2);
- delay(380);
+ delay(370);
+ Stop();
+ delay(150);
  Control(4);
  delay(380);
  Read_RedValue();
- while(!( Value_Red_ForWard[0] && !Value_Red_ForWard[1] && 
-            Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
+ while(Value_Red_ForWard[1]){
             Read_RedValue();
       }
   Direction = (Direction + 1) % 4;
@@ -382,13 +383,50 @@ void Turn_Left(){
 
 void Turn_Right(){
  Stop_PID();
- Control(2);
- delay(380);
+  Control(2);
+  delay(370);
+  Stop();
+  delay(150);
  Control(3);
  delay(380);
  Read_RedValue();
- while(!( Value_Red_ForWard[0] && Value_Red_ForWard[1] && 
-            !Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
+ while( Value_Red_ForWard[2] ){
+            Read_RedValue();
+      }
+  Direction = (Direction - 1) % 4;
+  if (Direction < 0) {
+    Direction += 4;
+  }
+//    Stop1();
+  Start_PID();
+  delay(150);     // 防止转弯后误触发
+}
+
+void Turn_Left_Not_Back(){
+//  Serial.println("左转！");
+ Stop_PID();
+// Control(2);
+// delay(380);
+ Control(4);
+ delay(380);
+ Read_RedValue();
+ while(Value_Red_ForWard[1]){
+            Read_RedValue();
+      }
+  Direction = (Direction + 1) % 4;
+  Start_PID();
+  delay(150);
+}
+
+
+void Turn_Right_Not_Back(){
+ Stop_PID();
+//  Control(2);
+//  delay(380);
+ Control(3);
+ delay(380);
+ Read_RedValue();
+ while( Value_Red_ForWard[2] ){
             Read_RedValue();
       }
   Direction = (Direction - 1) % 4;
@@ -402,28 +440,27 @@ void Turn_Right(){
 
 
 
-
 void Turn_Around(){
-  Stop_PID();
+   Stop_PID();
    V_NOW_L = -155;
    V_NOW_R = 155;
    Limit_Pwm();
    Set_Pwm();
    delay(350);
    Read_RedValue();
-   while(!( !Value_Red_ForWard[0] && Value_Red_ForWard[1] && 
-              Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
+   while( Value_Red_ForWard[1]){
               Read_RedValue();
         }
   Direction = (Direction + 1) % 4;
-  delay(100);
+  delay(200);
   Read_RedValue();
-   while(!( !Value_Red_ForWard[0] && Value_Red_ForWard[1] && 
-              Value_Red_ForWard[2] && Value_Red_ForWard[3] )){
+   while(Value_Red_ForWard[1]){
               Read_RedValue();
         }
   Direction = (Direction + 1) % 4;
+  setpoint_L = setpoint_R = Value_Setpoint;
   Start_PID();
+  delay(150);
 }
 
 /**************************************************************************
@@ -470,6 +507,48 @@ void Rectify(){
                  setpoint_L = Value_Setpoint - bias-2;
     }
  }
+
+
+void Rectify_I(){   // 倒车循迹
+    int bias = 2;
+    if(Value_Red_ForWard[0] && Value_Red_ForWard[1] &&//左中出界
+            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
+                setpoint_L = -(Value_Setpoint - bias - 1);
+    }
+    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] &&//右中出界
+            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                setpoint_R = -(Value_Setpoint - bias - 1);
+    }
+//    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //停止
+//            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+//                Stop();
+//    }
+    else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //正常
+            !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                setpoint_L = setpoint_R = -Value_Setpoint+1;
+    }
+    else if(!Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //过线的时候, 正常
+            !Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
+                setpoint_L = setpoint_R = -Value_Setpoint+1;
+    }
+    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左小出界
+            !Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                 setpoint_L = -(Value_Setpoint - bias);
+    }
+    else if(Value_Red_ForWard[0] && !Value_Red_ForWard[1] && //右小出界
+            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                 setpoint_R = -(Value_Setpoint - bias);
+    }
+    else if(Value_Red_ForWard[0] && Value_Red_ForWard[1] && //左大出界
+            Value_Red_ForWard[2] && !Value_Red_ForWard[3]){
+                 setpoint_L = -(Value_Setpoint - bias - 2);
+    }
+    else if(!Value_Red_ForWard[0] && Value_Red_ForWard[1] && //右大出界
+            Value_Red_ForWard[2] && Value_Red_ForWard[3]){
+                 setpoint_R = -(Value_Setpoint - bias - 2);
+    }
+ }
+ 
  
 void Exam_arrval_Point(void){
     if( Value_Red_Center[1] && Value_Red_Center[3]){
@@ -537,7 +616,7 @@ void Movement_block(int x1, int y1, int x2, int y2) {       // 从A到B的巡线
       case 5:
         Stop_PID();
         Control(2);
-        delay(300);
+        delay(380);
         Stop();
         end_while = 1;
         break;      
@@ -549,106 +628,130 @@ void Movement_block(int x1, int y1, int x2, int y2) {       // 从A到B的巡线
 }
 
 
+
+
+void Catch_Move(char BuyCar){
+   // 先决定左转 右转 或不转
+   switch (BuyCar)
+   {
+     case 'A':
+       switch (Direction)
+       {
+         case 0:
+           Turn_Left_Not_Back();
+           Serial.println("Catch_Move: A, Direction = 0, Turn_Left");
+           break;
+         case 1:
+           Serial.println("Catch_Move: A, Direction = 1, Nop");
+           break;
+         case 2:
+           Turn_Right_Not_Back();
+           Serial.println("Catch_Move: A, Direction = 2, Turn_Right");
+           break;
+         case 3:
+           Serial.println("Catch_Move: A 旋转方向异常");
+       }
+       break;
+     case 'B':
+       switch (Direction)
+       {
+         case 0:
+           Serial.println("Catch_Move: B 旋转方向异常");
+           break;
+         case 1:
+           Turn_Left_Not_Back();
+           Serial.println("Catch_Move: B, Direction = 1, Turn_Left");
+           break;
+         case 2:
+           Serial.println("Catch_Move: B, Direction = 2, Nop");
+           break;
+         case 3:
+           Turn_Right_Not_Back();
+           Serial.println("Catch_Move: B, Direction = 3, Turn_Right");
+           break;
+       }
+       break;
+     case 'C':
+       switch (Direction)
+       {
+         case 0:
+           Turn_Right_Not_Back();
+           Serial.println("Catch_Move: C, Direction = 0, Turn_Right");
+           break;
+         case 1:
+           Serial.println("Catch_Move: C, Direction = 1, 旋转方向异常");
+           break;
+         case 2:
+           Turn_Left_Not_Back();
+           Serial.println("Catch_Move: C, Direction = 2, Turn_Left");
+           break;
+         case 3:
+           Serial.println("Catch_Move: C, Direction = 3, Nop");
+           break;
+       }
+       break;
+     case 'D':
+       switch (Direction)
+       {
+         case 0:
+           Serial.println("Catch_Move: D, Direction = 0, Nop");
+           break;
+         case 1:
+           Turn_Right_Not_Back();
+           Serial.println("Catch_Move: D, Direction = 1, Turn_Right");
+           break;
+         case 2:
+           Serial.println("Catch_Move: D, Direction = 2, 旋转方向异常");
+           break;
+         case 3:
+           Turn_Left_Not_Back();
+           Serial.println("Catch_Move: D, Direction = 3, Turn_Left");
+           break;
+       }
+       break;
+   }
 //
-//
-//void Catch_Move(char BuyCar){
-//    // 先决定左转 右转 或不转
-//    switch (BuyCar)
-//    {
-//      case 'A':
-//        switch (Direction)
-//        {
-//          case 0:
-//            Turn_Left();
-//            Serial.println("Catch_Move: A, Direction = 0, Turn_Left");
-//            break;
-//          case 1:
-//            Serial.println("Catch_Move: A, Direction = 1, Nop");
-//            break;
-//          case 2:
-//            Turn_Right();
-//            Serial.println("Catch_Move: A, Direction = 2, Turn_Right");
-//            break;
-//          case 3:
-//            Serial.println("Catch_Move: A 旋转方向异常");
-//        }
-//        break;
-//      case 'B':
-//        switch (Direction)
-//        {
-//          case 0:
-//            Serial.println("Catch_Move: B 旋转方向异常");
-//            break;
-//          case 1:
-//            Turn_Left();
-//            Serial.println("Catch_Move: B, Direction = 1, Turn_Left");
-//            break;
-//          case 2:
-//            Serial.println("Catch_Move: B, Direction = 2, Nop");
-//            break;
-//          case 3:
-//            Turn_Right();
-//            Serial.println("Catch_Move: B, Direction = 3, Turn_Right");
-//            break;
-//        }
-//        break;
-//      case 'C':
-//        switch (Direction)
-//        {
-//          case 0:
-//            Turn_Right();
-//            Serial.println("Catch_Move: C, Direction = 0, Turn_Right");
-//            break;
-//          case 1:
-//            Serial.println("Catch_Move: C, Direction = 1, 旋转方向异常");
-//            break;
-//          case 2:
-//            Turn_Left();
-//            Serial.println("Catch_Move: C, Direction = 2, Turn_Left");
-//            break;
-//          case 3:
-//            Serial.println("Catch_Move: C, Direction = 3, Nop");
-//            break;
-//        }
-//        break;
-//      case 'D':
-//        switch (Direction)
-//        {
-//          case 0:
-//            Serial.println("Catch_Move: D, Direction = 0, Nop");
-//            break;
-//          case 1:
-//            Turn_Right();
-//            Serial.println("Catch_Move: D, Direction = 1, Turn_Right");
-//            break;
-//          case 2:
-//            Serial.println("Catch_Move: D, Direction = 2, 旋转方向异常");
-//            break;
-//          case 3:
-//            Turn_Left();
-//            Serial.println("Catch_Move: D, Direction = 3, Turn_Left");
-//            break;
-//        }
-//        break;
-//    }
-//    Control(1);
-//    Start_PID();
-//    int time3;
-//    time3 = millis();
-//    while(millis() - time3 <= 1500){
-//      Read_RedValue();
-//      Rectify();
-//    }
-//    Stop();  
-//
-//    ///// 拍摄 + 抓货物 + 给出下一个目标点
-//    Catch_items(BuyCar);
-//    Control(2);     // 倒车
-//    delay(1500);
-//    Stop();         // 完成
-//    Movement_block(Now_Point.x, Now_Point.y, Target_Point.x, Target_Point.y);
-//    
-//}
+   Stop();
+   delay(1000);
+   
+   Turn_STE(180,STE_turn);
+   delay(500);
+
+   int time3;
+   time3 = millis();
+   Control(1);
+   Start_PID();
+//   while(millis() - time3 <= 880){
+//     Read_RedValue();
+//     Rectify();
+//   }
+   delay(860);
+   Stop();
+   delay(500);
+   Catch();  
+   
+  //  ///// 拍摄 + 抓货物 + 给出下一个目标点
+  //  Catch_items(BuyCar);
+//   Control(2);     // 倒车
+   setpoint_L = setpoint_R = -Value_Setpoint + 2;
+   Start_PID();
+   Read_RedValue();
+   while(!(!Value_Red_Center[1] && !Value_Red_Center[3])){
+    Read_RedValue();
+    Rectify_I();
+   }
+   Stop();
+   
+//   V_NOW_L = V_NOW_R = 150;
+//   Set_Pwm();
+//   delay(350);
+   Stop();         // 完成
+   delay(1000);
+   Turn_STE(150,STE_turn);
+   delay(500);
+   Control_Step(1);
+  //  Movement_block(Now_Point.x, Now_Point.y, Target_Point.x, Target_Point.y);
+}
 //
 //
 ///* ********************************************************************
@@ -1384,31 +1487,35 @@ void loop(){
     }
     if(Flag_Begin == true && move_state == 0){
         move_state = 1;
-        Direction = 0;
-         Movement_block(10, 9, 10, 10);
-         Turn_Left();
-         Stop();
-         delay(50);
-         Scan_Echo();
-         IsFullB[0][0] = Scan_State[0];
-         IsFullB[1][0] = Scan_State[1];
-         for(int i = 10; i >=6 ; i--){
-           Movement_block(i, 10, i-1, 10);
-           delay(50); 
-           Scan_Echo();
-           IsFullB[0][11 - i] = Scan_State[0];
-           IsFullB[1][11 - i] = Scan_State[1];
-           // Scan_Shelf
-         }
-         for(int i = 0; i < 6; i++){
-          Serial.print(IsFullB[0][i]);
-          Serial.print(' ');
-         }
-         Serial.print('\n');
-         for(int i = 0; i < 6; i++){
-          Serial.print(IsFullB[1][i]);
-          Serial.print(' ');
-         }
-         Serial.print('\n');
+        Direction = 2;
+        Movement_block(2, 9, 6, 8);
+        Catch_Move('B');
+        Movement_block(6, 8, 6, 10);
+        Loose();
+        //  Movement_block(10, 9, 10, 10);
+        //  Turn_Left();
+        //  Stop();
+        //  delay(50);
+        //  Scan_Echo();
+        //  IsFullB[0][0] = Scan_State[0];
+        //  IsFullB[1][0] = Scan_State[1];
+        //  for(int i = 10; i >=6 ; i--){
+        //    Movement_block(i, 10, i-1, 10);
+        //    delay(50); 
+        //    Scan_Echo();
+        //    IsFullB[0][11 - i] = Scan_State[0];
+        //    IsFullB[1][11 - i] = Scan_State[1];
+        //    // Scan_Shelf
+        //  }
+        //  for(int i = 0; i < 6; i++){
+        //   Serial.print(IsFullB[0][i]);
+        //   Serial.print(' ');
+        //  }
+        //  Serial.print('\n');
+        //  for(int i = 0; i < 6; i++){
+        //   Serial.print(IsFullB[1][i]);
+        //   Serial.print(' ');
+        //  }
+        //  Serial.print('\n');
     }
  }
