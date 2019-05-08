@@ -19,6 +19,7 @@ void Run_Step(bool direct){
 返回  值：无
 **************************************************************************/
 void Control_Step(int moveto){
+  digitalWrite(STEP_ENA, HIGH);
   if(Step_Flag == 0){
      switch(moveto){
       case 0: break;

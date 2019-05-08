@@ -714,7 +714,7 @@ void Catch_Move(char BuyCar){
    Stop();
    delay(1000);
    
-   Turn_STE(180,STE_turn);
+   Turn_STE(120,STE_turn);
    delay(500);
 
    int time3;
@@ -747,7 +747,7 @@ void Catch_Move(char BuyCar){
 //   delay(350);
    Stop();         // 完成
    delay(1000);
-   Turn_STE(150,STE_turn);
+   Turn_STE(90,STE_turn);
    delay(500);
    Control_Step(1);
   //  Movement_block(Now_Point.x, Now_Point.y, Target_Point.x, Target_Point.y);
@@ -1454,9 +1454,9 @@ void setup() {
     pinMode(ENCODER_R_B, INPUT); 
     STE_turn.attach(9);  // attaches the servo on pin 9 to the servo object
     STE_cat.attach(3);
-    pinMode(PLS,OUTPUT);
-    pinMode(DIR,OUTPUT);
-    pinMode(STEP_ENA,OUTPUT);
+    pinMode(PLS, OUTPUT);
+    pinMode(DIR, OUTPUT);
+    pinMode(STEP_ENA, OUTPUT);
 
     //初始化
     digitalWrite(IN1, LOW);          //TB6612控制引脚拉低
@@ -1487,11 +1487,11 @@ void loop(){
     }
     if(Flag_Begin == true && move_state == 0){
         move_state = 1;
-        Direction = 2;
-        Movement_block(2, 9, 6, 8);
-        Catch_Move('B');
-        Movement_block(6, 8, 6, 10);
-        Loose();
+//        Direction = 2;
+//        Movement_block(2, 9, 6, 8);
+//        Catch_Move('B');
+//        Movement_block(6, 8, 6, 10);
+//        Loose();
         //  Movement_block(10, 9, 10, 10);
         //  Turn_Left();
         //  Stop();

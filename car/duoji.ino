@@ -55,5 +55,5 @@ void Loose(){
 void angle_ini(){
   Turn_STE(-180,STE_cat);
   delay(200);
-  Turn_STE(150,STE_turn); 
+  Turn_STE(90,STE_turn); 
 }
