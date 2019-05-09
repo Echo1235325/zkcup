@@ -41,11 +41,11 @@ void Control_STE(){
  ****************************************************/
 void Catch(){
     Turn_STE(180,STE_cat);
-    delay(2000);
+    delay(500);
 }
 void Loose(){
     Turn_STE(-180,STE_cat);
-    delay(2000);
+    delay(500);
 }
 /****************************************************
  * 函数功能：爪子与云台位置初始化
@@ -55,5 +55,5 @@ void Loose(){
 void angle_ini(){
   Turn_STE(-180,STE_cat);
   delay(200);
-  Turn_STE(90,STE_turn); 
+  Turn_STE(82,STE_turn); 
 }
