@@ -19,11 +19,12 @@ void Run_Step(bool direct){
 返回  值：无
 **************************************************************************/
 void Control_Step(int moveto){
+  digitalWrite(STEP_ENA, HIGH);
   if(Step_Flag == 0){
      switch(moveto){
       case 0: break;
       case 1: 
-            for(int i = 0;i<42;i++)  
+            for(int i = 0;i<40;i++)  
                 Run_Step(LOW);
               delay(300);
               Step_Flag = 1;
@@ -33,7 +34,7 @@ void Control_Step(int moveto){
   else if(Step_Flag == 1){
       switch(moveto){
       case 0: 
-              for(int i = 0;i<42;i++)  
+              for(int i = 0;i<40;i++)  
                 Run_Step(HIGH);
               delay(300);
               Step_Flag = 0;

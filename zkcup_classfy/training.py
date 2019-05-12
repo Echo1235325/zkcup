@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     ################ training and save model ###################
     model = model.to(device)
-    model = training_model(model, CostFunction, optimizer, scheduler, num_epochs=14)
+    model = training_model(model, CostFunction, optimizer, scheduler, num_epochs=15)
 
 
 

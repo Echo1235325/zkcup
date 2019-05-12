@@ -4,8 +4,8 @@
  * 参数：angle旋转角度; STE舵机代号
  * 返回值: void 
  ****************************************************/
-void Turn_STE(int angle,Servo STE) {
-  if(angle > 0)
+int Turn_STE(int angle,Servo STE) {
+  if(angle >= 0)
     for (pos = 0; pos <= angle; pos += 1) { // goes from 0 degrees to 180 degrees
                         // in steps of 1 degree
       STE.write(pos);              // tell servo to go to position in variable 'pos'
@@ -19,20 +19,6 @@ void Turn_STE(int angle,Servo STE) {
   }
 }
 
-/****************************************************
- * 函数功能：云台控制
- * 参数：
- * 返回值: void 
- ****************************************************/
-void Control_STE(){
-  if(Flag_STEturn){ 
-      Turn_STE(180,STE_turn);
-      delay(1000);
-      Turn_STE(120,STE_turn);
-      delay(1000);
-  }
-}
-
 
 /****************************************************
  * 函数功能：抓
@@ -41,11 +27,11 @@ void Control_STE(){
  ****************************************************/
 void Catch(){
     Turn_STE(180,STE_cat);
-    delay(200);
+    delay(100);
 }
 void Loose(){
-    Turn_STE(-180,STE_cat);
-    delay(200);
+    Turn_STE(40,STE_cat);
+    delay(300);
 }
 /****************************************************
  * 函数功能：爪子与云台位置初始化
@@ -53,7 +39,7 @@ void Loose(){
  * 返回值: void 
  ****************************************************/
 void angle_ini(){
-  Turn_STE(-180,STE_cat);
+  STE_cat.write(0);
   delay(200);
-  STE_turn.write(150);  
+  STE_turn.write(82);
 }
