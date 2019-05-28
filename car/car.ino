@@ -983,7 +983,6 @@ int Flag_Recognize = false;
 delay(200);
 Serial.print("C");        // 给nnpred程序发送开始识别指令C
 time1 = millis();
-
 while(1){  // 等待nnpred计算完成返回计算结果
   if (Serial.available()) {
     good = Serial.read();
@@ -1767,67 +1766,10 @@ void loop(){
           delay(3000);
           move_state = 1;
           Direction = 0;
-          //Init_Scan_Shelf();
+          Init_Scan_Shelf();
           Movement_block(8,1,8,5);
           BuyCar = 'A';
           Loose();
           MAIN_LOOP();
-
-//          Movement_block(8,1,8,5);
-//          Movement_block(8,5,9,6);
-//          Movement_block(9,6,8,2);
-//          Movement_block(8,2,10,4);
-//          Movement_block(10,4,8,4);
-//          Turn_STE(120,STE_turn);
-//          delay(300);
-//          Movement_block(8,4,9,3);
-//          Movement_block(9,3,8,4);
-//          Turn_STE(82,STE_turn);
-//          delay(300);
-//          Movement_block(8,4,8,5);
-//          Turn_STE(60,STE_turn);
-//          delay(300);
-//          Movement_block(8,5,8,3);
-//          Movement_block(8,3,8,4);
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullA[0][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullA[1][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullB[0][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullB[1][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//                    for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullC[0][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullC[1][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//                    for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullD[0][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
-//          for(int i = 0; i < 6; i++){
-//           Serial.print(IsFullD[1][i]);
-//           Serial.print(' ');
-//          }
-//          Serial.print('\n');
     }
  }
